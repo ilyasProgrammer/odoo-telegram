@@ -14,15 +14,15 @@ _logger = logging.getLogger('# Telegram')
 class TelegramCommand(models.Model):
     _name = "telegram.command"
 
+    name = fields.Char()
+    python_code = fields.Char()
+    groups = fields.Char()
+
     @api.model
     def telegram_listener(self, messages, bot):
         for m in messages:
             if m.content_type == 'text':
-                if m.text == '/login':
-                    login_token = TelegramUser.register_user(self.env, m.chat.id)
-                    web_base = get_parameter(bot.db_name, 'web.base.url')
-                    bot.send_message(m.chat.id, '%s/web/login/telegram?token=%s' % (web_base, login_token))
-                elif m.text == '/users':
+                if m.text == '/users':
                     TelegramUser.check_access(self.env, m.chat.id, '/users')
                     users_logintime_list = [str(r.name) + ', last login at: ' + str(r.login_date) for r in
                                             self.env['res.users'].search([('name', '!=', None)])]
