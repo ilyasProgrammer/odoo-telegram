@@ -110,7 +110,7 @@ class WorkerTelegram(Worker):
                 # add new threads
                 wp.workers += [util.WorkerThread(wp.on_exception, wp.tasks) for _ in range(diff)]
                 bot.telegram_threads += diff
-                _logger.info("Telegram workers increased and now its amount = %s" % self.running_workers_num(wp.workers))
+                _logger.info("Telegram workers increased and now its amount = %s" % running_workers_num(wp.workers))
             elif new_num_threads < bot.telegram_threads:
                 # decrease threads
                 cnt = 0
@@ -175,6 +175,7 @@ class OdooTelegramThread(threading.Thread):
 
     def run(self):
         _logger.info("OdooTelegramThread started with %s threads" % self.odoo_threads)
+
         def listener(message, bot):
             db = openerp.sql_db.db_connect(bot.db_name)
             registry = openerp.registry(bot.db_name)
@@ -203,7 +204,8 @@ class OdooTelegramThread(threading.Thread):
                         raise ValidationError('Unregistered token')
             self.manage_threads()
 
-    def get_num_of_children(self):
+    @staticmethod
+    def get_num_of_children():
         db_names = _db_list()
         n = 1  # its minimum
         for db_name in db_names:
@@ -239,8 +241,8 @@ class OdooTelegramThread(threading.Thread):
                         cnt += 1
                         if cnt >= -diff:
                             break
-                            self.odoo_threads += diff
-                _logger.info("Odoo workers decreased and now its amount = %s" % self.running_workers_num(wp.workers))
+                self.odoo_threads += diff
+                _logger.info("Odoo workers decreased and now its amount = %s" % running_workers_num(wp.workers))
 
 
 class TeleBotMod(TeleBot, object):
