@@ -137,9 +137,9 @@ class BotPollingThread(threading.Thread):
     """
         This is father-thread for telegram bot execution-threads.
         When bot polling is started it at once spawns several child threads (num=telegram.telegram_threads).
-        Those threads listens for events from telegram server.
-        If one of them catches message from server it calls telegram_listener().
-        Listener do what command requires by it self or may push according command in telegram bus.
+        Then in __threaded_polling() it listens for events from telegram server.
+        If it catches message from server it gives to manage this message to one of executors that calls telegram_listener().
+        Listener do what command requires by it self or may send according command in telegram bus.
         For every database with token one bot and one bot_polling is created.
     """
     def __init__(self, interval, bot):
