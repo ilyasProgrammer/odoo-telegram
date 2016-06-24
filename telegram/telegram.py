@@ -12,6 +12,9 @@ _logger = logging.getLogger('# Telegram')
 
 
 class TelegramCommand(models.Model):
+    """
+        Model represents some command that may be proceeded.
+    """
     _name = "telegram.command"
 
     name = fields.Char()
