@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<openerp>
+<data>
+    <!--BASIC COMMANDS-->
+    <record model="telegram.command" id="login_command">
+        <field name="name">/login</field>
+        <field name="python_code">_logger.warning('EVAL CODE EXECUTED !!!')
+login_token = TelegramUser.register_user(self.env, m.chat.id)
+web_base = get_parameter(bot.db_name, 'web.base.url')
+bot.send_message(m.chat.id, '%s/web/login/telegram?token=%s' % (web_base, login_token))
+        </field>
+    </record>
+</data>
+</openerp>

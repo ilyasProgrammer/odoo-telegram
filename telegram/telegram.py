@@ -7,9 +7,18 @@ from openerp import SUPERUSER_ID
 import openerp
 from openerp.exceptions import ValidationError
 import logging
+from openerp.tools.safe_eval import safe_eval
+import datetime
+import dateutil
+import time
 
 _logger = logging.getLogger('# Telegram')
 
+SAFE_EVAL_BASE = {
+    'datetime': datetime,
+    'dateutil': dateutil,
+    'time': time,
+}
 
 class TelegramCommand(models.Model):
     """
@@ -24,16 +33,24 @@ class TelegramCommand(models.Model):
     @api.model
     def telegram_listener(self, messages, bot):
         for m in messages:
-            if m.content_type == 'text':
-                if m.text == '/users':
-                    TelegramUser.check_access(self.env, m.chat.id, '/users')
-                    users_logintime_list = [str(r.name) + ', last login at: ' + str(r.login_date) for r in
-                                            self.env['res.users'].search([('name', '!=', None)])]
-                    [bot.send_message(m.chat.id, r) for r in users_logintime_list]
-                elif m.text == '/mails':
-                    pass
-                else:
-                    bot.send_message(m.chat.id, 'You say ' + m.text)
+            res = self.env['telegram.command'].search([('name', '=', m.text)], limit=1)
+            _logger.warning(res)
+            if len(res) == 1:
+                safe_eval(res[0].python_code, SAFE_EVAL_BASE, {'self': self,
+                                                               'TelegramUser': TelegramUser,
+                                                               'bot': bot,
+                                                               'get_parameter': get_parameter,
+                                                               'm': m}, mode="exec", nocopy=True)
+            # if m.content_type == 'text':
+            #     if m.text == '/users':
+            #         TelegramUser.check_access(self.env, m.chat.id, '/users')
+            #         users_logintime_list = [str(r.name) + ', last login at: ' + str(r.login_date) for r in
+            #                                 self.env['res.users'].search([('name', '!=', None)])]
+            #         [bot.send_message(m.chat.id, r) for r in users_logintime_list]
+            #     elif m.text == '/mails':
+            #         pass
+            #     else:
+            #         bot.send_message(m.chat.id, 'You say ' + m.text)
 
     def odoo_listener(self, message, bot):
         # TODO exceptions ?
