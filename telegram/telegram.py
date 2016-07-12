@@ -12,12 +12,13 @@ import datetime
 import dateutil
 import time
 import logging
+import telebot
 import sys
 from lxml import etree
 from openerp.addons.base.ir.ir_qweb import QWebContext
 
 _logger = logging.getLogger('# Telegram')
-
+telebot.logger.setLevel(logging.DEBUG)
 SAFE_EVAL_BASE = {
     'datetime': datetime,
     'dateutil': dateutil,
@@ -87,13 +88,14 @@ class TelegramCommand(models.Model):
         ctx.update({'locals_dict': locals_dict})
         dom = etree.fromstring(template)
         rend = qweb.render_node(dom, ctx)
+        _logger.info(rend)
         if bus_message:
             chat_id = bus_message['chat_id']
         elif telegram_message:
             chat_id = telegram_message.chat.id
         else:
             return
-        bot.send_message(chat_id, rend)
+        bot.send_message(chat_id, rend, parse_mode='HTML')
 
 
 class TelegramUser(models.TransientModel):
