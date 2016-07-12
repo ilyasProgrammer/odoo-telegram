@@ -8,7 +8,7 @@
 web_base = get_parameter(bot.db_name, 'web.base.url')
         </field>
         <field name="response_template" type="xml"><t><t t-esc="locals_dict['web_base']"/>/web/login/telegram?token=<t t-esc="locals_dict['login_token']"/></t></field>
-        <field name="notify_template" type="xml"><t>Hello <t t-esc="odoo_user_name"/></t></field>
+        <field name="notify_template" type="xml"><t>Hello <t t-esc="locals_dict['odoo_user_name']"/></t></field>
         <field name="response_code">odoo_user_name = m['odoo_user_name']</field>
     </record>
 

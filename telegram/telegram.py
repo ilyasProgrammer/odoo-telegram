@@ -12,6 +12,7 @@ import datetime
 import dateutil
 import time
 import logging
+import sys
 from lxml import etree
 from openerp.addons.base.ir.ir_qweb import QWebContext
 
@@ -45,7 +46,7 @@ class TelegramCommand(models.Model):
     @api.model
     def telegram_listener(self, messages, bot):
         # python_code execution method
-        for m in messages:
+        for m in messages:  # messages from telegram server
             res = self.env['telegram.command'].search([('name', '=', m.text)], limit=1)
             if len(res) == 1:
                 locals_dict = {'self': self, 'bot': bot, 'm': m,
@@ -58,22 +59,25 @@ class TelegramCommand(models.Model):
             else:
                 bot.send_message(m.chat.id, 'No such command: < %s > .' % m.text)
 
+    @api.model
     def odoo_listener(self, message, bot):
-        m = message['message']
-        print '# 111:'
-        res = self.pool['telegram.command'].search(self._cr, self._uid, [('name', '=', m.text)], limit=1)
-        print '# 222:'
-        if len(res) == 1:
-            if res[0].response_code:
-                locals_dict = {'self': self, 'bot': bot, 'm': m,
-                               'TelegramUser': TelegramUser,
-                               'get_parameter': get_parameter}
-                safe_eval(res[0].response_code, SAFE_EVAL_BASE, locals_dict, mode="exec", nocopy=True)
-                self.notify(bot, m, res[0].notify_template, locals_dict)
-            else:
-                pass  # No response code for this command. Response code is optional.
-        elif len(res) > 1:
-            raise ValidationError('Multiple values for %s' % res)
+        m = message['message']  # message from bus, not from telegram server.
+        registry = openerp.registry(bot.db_name)
+        db = openerp.sql_db.db_connect(bot.db_name)
+        with openerp.api.Environment.manage(), db.cursor() as cr:
+            command_id = registry['telegram.command'].search(cr, SUPERUSER_ID, [('name', '=', m['action'])], limit=1)
+            command = registry['telegram.command'].browse(cr, SUPERUSER_ID, command_id)
+            if len(command) == 1:
+                if command.response_code:
+                    locals_dict = {'bot': bot, 'm': m,
+                                   'TelegramUser': TelegramUser,
+                                   'get_parameter': get_parameter}
+                    safe_eval(command.response_code, SAFE_EVAL_BASE, locals_dict, mode="exec", nocopy=True)
+                    self.notify(bot, m, command.notify_template, locals_dict)
+                else:
+                    pass  # No response code for this command. Response code is optional.
+            elif len(command) > 1:
+                raise ValidationError('Multiple values for %s' % command)
 
     def notify(self, bot, m, template, locals_dict):
         """Response or notify user"""
@@ -83,7 +87,13 @@ class TelegramCommand(models.Model):
         ctx.update({'locals_dict': locals_dict})
         dom = etree.fromstring(template)
         rend = qweb.render_node(dom, ctx)
-        bot.send_message(m.chat.id, rend)
+        if isinstance(m, dict):
+            chat_id = m['chat_id']
+        elif isinstance(m, object):
+            chat_id = m.chat.id
+        else:
+            return
+        bot.send_message(chat_id, rend)
 
 
 class TelegramUser(models.TransientModel):
