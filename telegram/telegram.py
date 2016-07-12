@@ -53,7 +53,7 @@ class TelegramCommand(models.Model):
                                'TelegramUser': TelegramUser,
                                'get_parameter': get_parameter}
                 safe_eval(res[0].python_code, SAFE_EVAL_BASE, locals_dict, mode="exec", nocopy=True)
-                self.notify(bot, m, res[0].response_template, locals_dict)
+                self.notify(bot, res[0].response_template, locals_dict, telegram_message=m)
             elif len(res) > 1:
                 raise ValidationError('Multiple values for %s' % res)
             else:
@@ -65,7 +65,7 @@ class TelegramCommand(models.Model):
         registry = openerp.registry(bot.db_name)
         db = openerp.sql_db.db_connect(bot.db_name)
         with openerp.api.Environment.manage(), db.cursor() as cr:
-            command_id = registry['telegram.command'].search(cr, SUPERUSER_ID, [('name', '=', m['action'])], limit=1)
+            command_id = registry['telegram.command'].search(cr, SUPERUSER_ID, [('name', '=', m['action'])])
             command = registry['telegram.command'].browse(cr, SUPERUSER_ID, command_id)
             if len(command) == 1:
                 if command.response_code:
@@ -73,24 +73,24 @@ class TelegramCommand(models.Model):
                                    'TelegramUser': TelegramUser,
                                    'get_parameter': get_parameter}
                     safe_eval(command.response_code, SAFE_EVAL_BASE, locals_dict, mode="exec", nocopy=True)
-                    self.notify(bot, m, command.notify_template, locals_dict)
+                    self.notify(bot, command.notify_template, locals_dict, bus_message=m)
                 else:
                     pass  # No response code for this command. Response code is optional.
             elif len(command) > 1:
                 raise ValidationError('Multiple values for %s' % command)
 
-    def notify(self, bot, m, template, locals_dict):
-        """Response or notify user"""
+    def notify(self, bot, template, locals_dict, bus_message=False, telegram_message=False):
+        """Response or notify user. template - xml to render with locals_dict."""
         qweb = self.pool['ir.qweb']
         context = QWebContext(self._cr, self._uid, {})
         ctx = context.copy()
         ctx.update({'locals_dict': locals_dict})
         dom = etree.fromstring(template)
         rend = qweb.render_node(dom, ctx)
-        if isinstance(m, dict):
-            chat_id = m['chat_id']
-        elif isinstance(m, object):
-            chat_id = m.chat.id
+        if bus_message:
+            chat_id = bus_message['chat_id']
+        elif telegram_message:
+            chat_id = telegram_message.chat.id
         else:
             return
         bot.send_message(chat_id, rend)
