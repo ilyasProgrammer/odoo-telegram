@@ -30,20 +30,20 @@ class TelegramCommand(models.Model):
     """
         Model represents Telegram commands that may be proceeded.
         Other modules can add new commands by adding some records of telegram.command model.
-        Command must have:
-          - python_code to execute;
-          - response_code to handle odoo response on executed python_code as optional;
-          - and web controllers if it is needed.
+        Short commands gives result right after action_code is done.
+        Long commands gives result after job is done, when appropriate notification appears in bus.
     """
     _name = "telegram.command"
 
     name = fields.Char()
-    python_code = fields.Char()
-    response_code = fields.Char()
-    group_ids = fields.One2many('res.groups', 'telegram_command_id')
-    response_template = fields.Char()
-    notify_template = fields.Char()
-    model_ids = fields.Many2many('ir.model', 'command_to_model_rel', 'command_id', 'model_id')
+    action_code = fields.Char()        # python code to execute task. Launched by telegram_listener
+    response_code = fields.Char()      # python code to get data, computed after executed action code. Launched by odoo_listener (bus)
+    update_cache_code = fields.Char()  # python code to update cache. Launched by ir.actions.server
+    group_ids = fields.One2many('res.groups', 'telegram_command_id')  # Who can use this command
+    response_template = fields.Char()  # Template of message, that user will receive immediately after he send command
+    notify_template = fields.Char()    # Template of message, that user will receive after job is done
+    model_ids = fields.Many2many('ir.model', 'command_to_model_rel', 'command_id', 'model_id')  # These models changes initiates cache updates for this command.
+    cache = False  # keeps beforehand prepared answer on this command
 
     @api.model
     def telegram_listener(self, messages, bot):
@@ -54,7 +54,7 @@ class TelegramCommand(models.Model):
                 locals_dict = {'self': self, 'bot': bot, 'm': m,
                                'TelegramUser': TelegramUser,
                                'get_parameter': get_parameter}
-                safe_eval(res[0].python_code, SAFE_EVAL_BASE, locals_dict, mode="exec", nocopy=True)
+                safe_eval(res[0].action_code, SAFE_EVAL_BASE, locals_dict, mode="exec", nocopy=True)
                 self.render_and_send(bot, res[0].response_template, locals_dict, telegram_message=m)
             elif len(res) > 1:
                 raise ValidationError('Multiple values for %s' % res)
@@ -98,6 +98,14 @@ class TelegramCommand(models.Model):
             return
         bot.send_message(chat_id, rend, parse_mode='HTML')
 
+    def update_cache(self, cr, uid, ids, context):
+        # Called by run_telegram_commands_cache_updates (ir.actions.server)
+        _logger.debug('In update_cache')
+        found_commands_ids = self.pool['telegram.command'].search(cr, uid, [('model_ids.model', '=', context['active_model'])])
+        for command_id in found_commands_ids:
+            command_obj = self.pool['telegram.command'].browse(cr, uid, command_id)
+            self.cache = CommandCache(command_obj)
+
 
 class TelegramUser(models.TransientModel):
     _name = "telegram.user"
@@ -133,7 +141,29 @@ class ResGroups(models.Model):
 
     telegram_command_id = fields.Many2one('telegram.command')
 
-# query = """SELECT *
+
+class CommandCache(object):
+    def __init__(self, command):
+        self.command = False
+        self.users_results = {}  # user - answer dict. Answer for every allowed user.
+        self.result = False      # Answer for all users.
+        self.update(command)
+
+    def update(self, command):
+        self.command = command.name
+        if len(command.group_ids):
+            # TODO prepare answer for every user in these groups
+            # Fill here self.users_results dict
+            pass
+        else:
+            # prepare same answer for all users
+            locals_dict = {'command': command, 'env': command.env}
+            safe_eval(command.action_code, SAFE_EVAL_BASE, locals_dict, mode="exec", nocopy=True)
+            self.result = locals_dict['result']
+
+
+
+    # query = """SELECT *
 #            FROM mail_message as a, mail_message_res_partner_rel as b
 #            WHERE a.id = b.mail_message_id
 #            AND b.res_partner_id = %s""" % (5,)
