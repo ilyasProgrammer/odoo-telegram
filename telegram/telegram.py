@@ -43,6 +43,7 @@ class TelegramCommand(models.Model):
     group_ids = fields.One2many('res.groups', 'telegram_command_id')
     response_template = fields.Char()
     notify_template = fields.Char()
+    model_ids = fields.Many2many('ir.model', 'command_to_model_rel', 'command_id', 'model_id')
 
     @api.model
     def telegram_listener(self, messages, bot):

@@ -18,7 +18,8 @@
     ],
     "external_dependencies": {"python": ['telebot'], "bin": []},
     "data": [
-        "data/records.xml",
+        "data/config_parameter.xml",
+        "data/it_action_rules.xml",
         "data/commands.xml",
         "security/ir.model.access.csv",
     ],

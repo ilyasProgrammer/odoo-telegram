@@ -21,10 +21,10 @@ users_logintime_list = [str(r.name) + ', last login at: ' + str(r.login_date) fo
         </field>
     </record>
 
-    <record model="telegram.command" id="echo_command">
-        <field name="name">/echo</field>
-        <field name="python_code">bot.send_message(m.chat.id, 'You say ' + m.text)
-        </field>
-    </record>
+    <!--<record model="telegram.command" id="echo_command">-->
+        <!--<field name="name">/echo</field>-->
+        <!--<field name="python_code">bot.send_message(m.chat.id, 'You say ' + m.text)-->
+        <!--</field>-->
+    <!--</record>-->
 </data>
 </openerp>
