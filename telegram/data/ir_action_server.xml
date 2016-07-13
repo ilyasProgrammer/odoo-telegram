@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<openerp>
+<data>
+    <record id="contract_set_as_pending" model="ir.actions.server">
+        <field name="name">HR Contract: set as pending</field>
+        <field name="model_id" ref="model_hr_contract"/>
+        <field name="condition">True</field>
+        <field name="type">ir.actions.server</field>
+        <field name="state">code</field>
+        <field name="code">object.set_as_pending()</field>
+    </record>
+</data>
+</openerp>
