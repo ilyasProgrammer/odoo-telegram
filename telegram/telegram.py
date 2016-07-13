@@ -18,6 +18,7 @@ from lxml import etree
 from openerp.addons.base.ir.ir_qweb import QWebContext
 
 _logger = logging.getLogger('# Telegram')
+_logger.setLevel(logging.DEBUG)
 # telebot.logger.setLevel(logging.DEBUG)
 SAFE_EVAL_BASE = {
     'datetime': datetime,
@@ -37,13 +38,12 @@ class TelegramCommand(models.Model):
 
     name = fields.Char()
     action_code = fields.Char()        # python code to execute task. Launched by telegram_listener
-    response_code = fields.Char()      # python code to get data, computed after executed action code. Launched by odoo_listener (bus)
+    action_response_template = fields.Char()  # Template of message, that user will receive immediately after he send command
+    notify_code = fields.Char()        # python code to get data, computed after executed action code. Launched by odoo_listener (bus)
+    notify_template = fields.Char()    # Template of message, that user will receive after job is done
     update_cache_code = fields.Char()  # python code to update cache. Launched by ir.actions.server
     group_ids = fields.One2many('res.groups', 'telegram_command_id')  # Who can use this command
-    response_template = fields.Char()  # Template of message, that user will receive immediately after he send command
-    notify_template = fields.Char()    # Template of message, that user will receive after job is done
     model_ids = fields.Many2many('ir.model', 'command_to_model_rel', 'command_id', 'model_id')  # These models changes initiates cache updates for this command.
-    cache = False  # keeps beforehand prepared answer on this command
 
     @api.model
     def telegram_listener(self, messages, bot):
@@ -51,11 +51,25 @@ class TelegramCommand(models.Model):
         for m in messages:  # messages from telegram server
             res = self.env['telegram.command'].search([('name', '=', m.text)], limit=1)
             if len(res) == 1:
-                locals_dict = {'self': self, 'bot': bot, 'm': m,
-                               'TelegramUser': TelegramUser,
-                               'get_parameter': get_parameter}
-                safe_eval(res[0].action_code, SAFE_EVAL_BASE, locals_dict, mode="exec", nocopy=True)
-                self.render_and_send(bot, res[0].response_template, locals_dict, telegram_message=m)
+                locals_dict = {'self': self, 'env': self.env, 'bot': bot, 'm': m, 'TelegramUser': TelegramUser, 'get_parameter': get_parameter}
+                _logger.debug(bot.cache)
+                if bot.cache:
+                    _logger.debug(bot.cache.result)
+                    if len(bot.cache.result):
+                        locals_dict.update(bot.cache.result)
+                        self.render_and_send(bot, res[0].action_response_template, locals_dict, telegram_message=m)
+                        _logger.debug('Sent answer from cache')
+                    elif len(bot.cache.users_results):
+                        for r in bot.cache.users_results:
+                            locals_dict.update(r.result)
+                            self.render_and_send(bot, res[0].action_response_template, locals_dict, telegram_message=m)
+                    else:
+                        raise ValidationError('No cache results for cache record: %s' % bot.cache)
+                else:
+                    safe_eval(res[0].action_code, SAFE_EVAL_BASE, locals_dict, mode="exec", nocopy=True)
+                    locals_dict.update(locals_dict['result'])
+                    self.render_and_send(bot, res[0].action_response_template, locals_dict, telegram_message=m)
+
             elif len(res) > 1:
                 raise ValidationError('Multiple values for %s' % res)
             else:
@@ -67,14 +81,17 @@ class TelegramCommand(models.Model):
         registry = openerp.registry(bot.db_name)
         db = openerp.sql_db.db_connect(bot.db_name)
         with openerp.api.Environment.manage(), db.cursor() as cr:
+            if m['update_cache']:
+                for command in m['found_commands_ids']:
+                    bot.cache.update(command)
             command_id = registry['telegram.command'].search(cr, SUPERUSER_ID, [('name', '=', m['action'])])
             command = registry['telegram.command'].browse(cr, SUPERUSER_ID, command_id)
             if len(command) == 1:
-                if command.response_code:
+                if command.notify_code:
                     locals_dict = {'bot': bot, 'm': m,
                                    'TelegramUser': TelegramUser,
                                    'get_parameter': get_parameter}
-                    safe_eval(command.response_code, SAFE_EVAL_BASE, locals_dict, mode="exec", nocopy=True)
+                    safe_eval(command.notify_code, SAFE_EVAL_BASE, locals_dict, mode="exec", nocopy=True)
                     self.render_and_send(bot, command.notify_template, locals_dict, bus_message=m)
                 else:
                     pass  # No response code for this command. Response code is optional.
@@ -100,11 +117,9 @@ class TelegramCommand(models.Model):
 
     def update_cache(self, cr, uid, ids, context):
         # Called by run_telegram_commands_cache_updates (ir.actions.server)
-        _logger.debug('In update_cache')
         found_commands_ids = self.pool['telegram.command'].search(cr, uid, [('model_ids.model', '=', context['active_model'])])
-        for command_id in found_commands_ids:
-            command_obj = self.pool['telegram.command'].browse(cr, uid, command_id)
-            self.cache = CommandCache(command_obj)
+        message = {'update_cache': True, 'model': context['active_model'], 'found_commands_ids': found_commands_ids}
+        self.pool['telegram.bus'].sendone(cr, SUPERUSER_ID, 'telegram_channel', message)
 
 
 class TelegramUser(models.TransientModel):
@@ -140,26 +155,6 @@ class ResGroups(models.Model):
     _inherit = 'res.groups'
 
     telegram_command_id = fields.Many2one('telegram.command')
-
-
-class CommandCache(object):
-    def __init__(self, command):
-        self.command = False
-        self.users_results = {}  # user - answer dict. Answer for every allowed user.
-        self.result = False      # Answer for all users.
-        self.update(command)
-
-    def update(self, command):
-        self.command = command.name
-        if len(command.group_ids):
-            # TODO prepare answer for every user in these groups
-            # Fill here self.users_results dict
-            pass
-        else:
-            # prepare same answer for all users
-            locals_dict = {'command': command, 'env': command.env}
-            safe_eval(command.action_code, SAFE_EVAL_BASE, locals_dict, mode="exec", nocopy=True)
-            self.result = locals_dict['result']
 
 
 

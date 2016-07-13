@@ -3,10 +3,13 @@ import telegram
 import telegram_bus
 import controllers
 import random
-
+import datetime
+import dateutil
+import time
 import openerp
 from openerp.service.server import Worker
 from openerp.service.server import PreforkServer
+from openerp.tools.safe_eval import safe_eval
 import telebot
 from telebot import TeleBot
 import telebot.util as util
@@ -19,6 +22,12 @@ import time
 from telebot import apihelper, types, util
 
 _logger = logging.getLogger('# Telegram')
+
+SAFE_EVAL_BASE = {
+    'datetime': datetime,
+    'dateutil': dateutil,
+    'time': time,
+}
 
 
 def telegram_worker():
@@ -248,7 +257,29 @@ class TeleBotMod(TeleBot, object):
     def __init__(self, token, threaded=True, skip_pending=False, num_threads=2):
         super(TeleBotMod, self).__init__(token, threaded=False, skip_pending=skip_pending)
         self.worker_pool = util.ThreadPool(num_threads)
+        self.cache = CommandCache()
         _logger.info("TeleBot started with %s threads" % num_threads)
+
+
+class CommandCache(object):
+    def __init__(self, command=False):
+        self.command = False
+        self.users_results = {}  # user - answer dict. Answer for every allowed user.
+        self.result = {}      # Answer for all users.
+        if command:
+            self.update(command)
+
+    def update(self, command):
+        self.command = command.name
+        if len(command.group_ids):
+            # TODO prepare answer for every user in these groups
+            # Fill here self.users_results dict
+            pass
+        else:
+            # prepare same answer for all users
+            locals_dict = {'command': command, 'env': command.env}
+            safe_eval(command.action_code, SAFE_EVAL_BASE, locals_dict, mode="exec", nocopy=True)
+            self.result = locals_dict['result']
 
 
 def get_parameter(db_name, key):
