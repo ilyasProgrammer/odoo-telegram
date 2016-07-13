@@ -18,7 +18,7 @@ from lxml import etree
 from openerp.addons.base.ir.ir_qweb import QWebContext
 
 _logger = logging.getLogger('# Telegram')
-telebot.logger.setLevel(logging.DEBUG)
+# telebot.logger.setLevel(logging.DEBUG)
 SAFE_EVAL_BASE = {
     'datetime': datetime,
     'dateutil': dateutil,
@@ -40,7 +40,7 @@ class TelegramCommand(models.Model):
     name = fields.Char()
     python_code = fields.Char()
     response_code = fields.Char()
-    groups = fields.Char()
+    group_ids = fields.One2many('res.groups', 'telegram_command_id')
     response_template = fields.Char()
     notify_template = fields.Char()
 
@@ -54,7 +54,7 @@ class TelegramCommand(models.Model):
                                'TelegramUser': TelegramUser,
                                'get_parameter': get_parameter}
                 safe_eval(res[0].python_code, SAFE_EVAL_BASE, locals_dict, mode="exec", nocopy=True)
-                self.notify(bot, res[0].response_template, locals_dict, telegram_message=m)
+                self.render_and_send(bot, res[0].response_template, locals_dict, telegram_message=m)
             elif len(res) > 1:
                 raise ValidationError('Multiple values for %s' % res)
             else:
@@ -74,13 +74,13 @@ class TelegramCommand(models.Model):
                                    'TelegramUser': TelegramUser,
                                    'get_parameter': get_parameter}
                     safe_eval(command.response_code, SAFE_EVAL_BASE, locals_dict, mode="exec", nocopy=True)
-                    self.notify(bot, command.notify_template, locals_dict, bus_message=m)
+                    self.render_and_send(bot, command.notify_template, locals_dict, bus_message=m)
                 else:
                     pass  # No response code for this command. Response code is optional.
             elif len(command) > 1:
                 raise ValidationError('Multiple values for %s' % command)
 
-    def notify(self, bot, template, locals_dict, bus_message=False, telegram_message=False):
+    def render_and_send(self, bot, template, locals_dict, bus_message=False, telegram_message=False):
         """Response or notify user. template - xml to render with locals_dict."""
         qweb = self.pool['ir.qweb']
         context = QWebContext(self._cr, self._uid, {})
@@ -126,6 +126,11 @@ class TelegramUser(models.TransientModel):
         # tele_user_obj = tele_env['telegram.user'].browse(tele_user_id)
         # TODO
 
+
+class ResGroups(models.Model):
+    _inherit = 'res.groups'
+
+    telegram_command_id = fields.Many2one('telegram.command')
 
 # query = """SELECT *
 #            FROM mail_message as a, mail_message_res_partner_rel as b
