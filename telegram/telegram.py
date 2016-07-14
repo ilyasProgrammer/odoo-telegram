@@ -52,28 +52,18 @@ class TelegramCommand(models.Model):
         Other modules can add new commands by adding some records of telegram.command model.
         Short commands gives result right after response_code is done.
         Long commands gives result after job is done, when appropriate notification appears in bus.
-
-        Members:
-          response_code - python code to execute task. Launched by telegram_listener
-          response_template - Template of message, that user will receive immediately after he send command
-          notify_code - python code to get data, computed after executed action code. Launched by odoo_listener (bus)
-          notify_template - Template of message, that user will receive after job is done
-          update_cache_code - python code to update cache. Launched by ir.actions.server
-          group_ids - Who can use this command
-          model_ids - These models changes initiates cache updates for this command.
-
     """
     _name = "telegram.command"
 
     name = fields.Char()
-    description = fields.Char()
-    cacheable = fields.Boolean()
-    response_code = fields.Char()
-    response_template = fields.Char()
-    notify_code = fields.Char()
-    notify_template = fields.Char()
-    group_ids = fields.One2many('res.groups', 'telegram_command_id')
-    model_ids = fields.Many2many('ir.model', 'command_to_model_rel', 'command_id', 'model_id')
+    description = fields.Char(help='What command do')
+    cacheable = fields.Boolean(help='Cache this command or not')
+    response_code = fields.Char(help='Python code to execute task. Launched by telegram_listener')
+    response_template = fields.Char(help='Template of message, that user will receive immediately after he send command')
+    notify_code = fields.Char(help='Python code to get data, computed after executed response code. Launched by odoo_listener (bus)')
+    notify_template = fields.Char(help='Template of message, that user will receive after job is done')
+    group_ids = fields.One2many('res.groups', 'telegram_command_id', help='Who can use this command')
+    model_ids = fields.Many2many('ir.model', 'command_to_model_rel', 'command_id', 'model_id', help='These models changes initiates cache updates for this command.')
 
     @api.model
     def telegram_listener(self, messages, bot):
@@ -185,7 +175,7 @@ class TelegramCommand(models.Model):
                 for user in users:
                     locals_dict.update({'user_id': user.id})
                     safe_eval(command.response_code, globals_dict, locals_dict, mode="exec", nocopy=True)
-                    users_results.update({'user_id': user.id, 'result': locals_dict['result']})
+                    users_results.update({user.id: {'user_id': user.id, 'result': locals_dict['result']}})
             else:
                 users_results = False
                 safe_eval(command.response_code, globals_dict, locals_dict, mode="exec", nocopy=True)
@@ -229,7 +219,6 @@ class TelegramUser(models.TransientModel):
     def logout(env, chat_id):
         tele_user_id = env['telegram.user'].search([('chat_id', '=', chat_id)])
         tele_user_id.logged_in = False
-
 
 
 class ResGroups(models.Model):

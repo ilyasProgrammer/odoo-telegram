@@ -295,14 +295,34 @@ class TeleBotMod(TeleBot, object):
 
 
 class CommandCache(object):
+    """
+        Cache structure:
+        <command_id> : {'result':'', 'users_results':{<user_id>:'bbb', <user_id>:'ccc'}}
+        Example:
+        {
+            1 : {'result':'aaaa', 'users_results':{1:'bbb', 2:'ccc'}},
+            2 : {'result':'fff',  'users_results':{2:'ddd', 3:'ggg'}}
+        }
+    """
     def __init__(self):
-        self.vals = {}           # vals{command_id(users_results{}, result)}
-        # self.command_id = ()
-        # self.users_results = {}  # user - answer dict. Answer for every allowed user.
-        # self.result = ''         # Answer for all users.
+        self._vals = {}
 
-    def update(self, command_id, result, users_results=False):
-        self.vals.update({command_id: {'result': result, 'users_results': users_results}})
+    def set_value(self, command_id, result=False, user_id=0):
+        if command_id.id not in self._vals:
+            self._vals.update({command_id: {}})
+        if user_id:
+            self._vals[command_id] = {'result': False, 'users_results': {user_id: result}}
+        elif result:
+            self._vals[command_id] = {'result': result, 'users_results': False}
+
+    def get_value(self, command_id, user_id=0):
+        if user_id:
+            res = self._vals[command_id]['users_results'][user_id]
+        else:
+            res = self._vals[command_id]['result']
+        return ret
+
+
 
 
 
