@@ -22,12 +22,12 @@ result['odoo_user_name'] = bus_message['odoo_user_name']</field>
                                        (4, ref('base.group_erp_manager')),
                                        (4, ref('base.group_system'))]" />
         <field name="model_ids" eval="[(4, ref('base.model_res_users'))]"/>
-        <field name="action_code">result = {}
-result['users_logintime_list'] = [str(r.name) + ', last login at: ' + str(r.login_date) + '\n' for r in env['res.users'].search([('name', '!=', None)])]
-_logger.debug('telegram.command users_command evaluated')
+        <field name="action_code">result = {'users_logintime_list':''}
+for r in env['res.users'].search([]):
+    result['users_logintime_list'] += '&lt;pre&gt;' + str(r.name) +', last login at: ' + str(r.login_date)+ '&lt;/pre&gt;'
         </field>
         <field name="action_response_template" type="xml">
-            <t><t t-esc="locals_dict['users_logintime_list']"/></t>
+            <t><t t-raw="locals_dict['users_logintime_list']"/></t>
         </field>
     </record>
 
