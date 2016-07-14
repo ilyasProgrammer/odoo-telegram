@@ -50,12 +50,12 @@ class TelegramCommand(models.Model):
     """
         Model represents Telegram commands that may be proceeded.
         Other modules can add new commands by adding some records of telegram.command model.
-        Short commands gives result right after action_code is done.
+        Short commands gives result right after response_code is done.
         Long commands gives result after job is done, when appropriate notification appears in bus.
 
         Members:
-          action_code - python code to execute task. Launched by telegram_listener
-          action_response_template - Template of message, that user will receive immediately after he send command
+          response_code - python code to execute task. Launched by telegram_listener
+          response_template - Template of message, that user will receive immediately after he send command
           notify_code - python code to get data, computed after executed action code. Launched by odoo_listener (bus)
           notify_template - Template of message, that user will receive after job is done
           update_cache_code - python code to update cache. Launched by ir.actions.server
@@ -68,8 +68,8 @@ class TelegramCommand(models.Model):
     name = fields.Char()
     description = fields.Char()
     cacheable = fields.Boolean()
-    action_code = fields.Char()
-    action_response_template = fields.Char()
+    response_code = fields.Char()
+    response_template = fields.Char()
     notify_code = fields.Char()
     notify_template = fields.Char()
     group_ids = fields.One2many('res.groups', 'telegram_command_id')
@@ -101,7 +101,7 @@ class TelegramCommand(models.Model):
                     _logger.debug(command_cache)
                     if command_cache['result']:
                         locals_dict.update(command_cache['result'])
-                        self.render_and_send(bot, tele_message.chat.id, command.action_response_template, locals_dict, tele_message=tele_message)
+                        self.render_and_send(bot, tele_message.chat.id, command.response_template, locals_dict, tele_message=tele_message)
                         need_computed_answer = False
                         _logger.debug('Sent answer from cache')
                     elif len(command_cache['users_results']):
@@ -110,12 +110,12 @@ class TelegramCommand(models.Model):
                             tele_user = self.env['telegram.user'].search([('id', '=', usr_cache_line['user_id']),
                                                                           ('chat_id', '=', tele_message.chat.id)])
                             if len(tele_user) > 0:
-                                self.render_and_send(bot, tele_message.chat.id, command.action_response_template, locals_dict, tele_message=tele_message)
+                                self.render_and_send(bot, tele_message.chat.id, command.response_template, locals_dict, tele_message=tele_message)
                             need_computed_answer = False
                 if need_computed_answer:
                     _logger.debug('No cache. Computing answer ...')
-                    safe_eval(command.action_code, globals_dict, locals_dict, mode="exec", nocopy=True)
-                    self.render_and_send(bot, tele_message.chat.id, command.action_response_template, locals_dict, tele_message=tele_message)
+                    safe_eval(command.response_code, globals_dict, locals_dict, mode="exec", nocopy=True)
+                    self.render_and_send(bot, tele_message.chat.id, command.response_template, locals_dict, tele_message=tele_message)
             elif len(res) > 1:
                 raise ValidationError('Multiple values for %s' % res)
             else:
@@ -184,11 +184,11 @@ class TelegramCommand(models.Model):
                 users = self.env['res.user'].search([('groups_ids', 'in', command.group_ids)])
                 for user in users:
                     locals_dict.update({'user_id': user.id})
-                    safe_eval(command.action_code, globals_dict, locals_dict, mode="exec", nocopy=True)
+                    safe_eval(command.response_code, globals_dict, locals_dict, mode="exec", nocopy=True)
                     users_results.update({'user_id': user.id, 'result': locals_dict['result']})
             else:
                 users_results = False
-                safe_eval(command.action_code, globals_dict, locals_dict, mode="exec", nocopy=True)
+                safe_eval(command.response_code, globals_dict, locals_dict, mode="exec", nocopy=True)
                 all_users_result = locals_dict['result']
             bot.cache.update(command.id, all_users_result, users_results)
 
