@@ -7,8 +7,7 @@
         <field name="condition">True</field>
         <field name="type">ir.actions.server</field>
         <field name="state">code</field>
-        <field name="code">self.update_cache(cr, uid, context['active_ids'], context=context)</field>
-        <!--<field name="code">self.update_cache()</field>-->
+        <field name="code">self.update_cache_bus_message(cr, uid, context['active_ids'], context=context)</field>
     </record>
 </data>
 </openerp>
