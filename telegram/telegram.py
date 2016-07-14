@@ -80,28 +80,36 @@ class TelegramCommand(models.Model):
         for tele_message in messages:  # messages from telegram server
             res = self.env['telegram.command'].search([('name', '=', tele_message.text)], limit=1)
             if len(res) == 1:
+                if not self.access_granted(res[0], tele_message.chat.id):
+                    bot.send_message(tele_message.chat.id, 'Access denied. Command:  %s  .' % tele_message.text)
+                    return
                 locals_dict = {'env': self.env, 'bot': bot, 'tele_message': tele_message, 'TelegramUser': TelegramUser}
+                need_computed_answer = True
                 if res[0].id in bot.cache.vals:
                     command_cache = bot.cache.vals[res[0].id]
                     _logger.debug('got cache for this command')
                     _logger.debug(command_cache)
                     if command_cache['result']:
                         locals_dict.update(command_cache['result'])
-                        self.render_and_send(bot, res[0].action_response_template, locals_dict, tele_message=tele_message)
+                        self.render_and_send(bot, tele_message.chat.id, res[0].action_response_template, locals_dict, tele_message=tele_message)
+                        need_computed_answer = False
                         _logger.debug('Sent answer from cache')
                     elif len(command_cache['users_results']):
-                        for r in command_cache['users_results']:
-                            locals_dict.update(r['result'])
-                            self.render_and_send(bot, res[0].action_response_template, locals_dict, tele_message=tele_message)
-                else:
-                    _logger.debug('No cache. Computing answer.')
+                        for usr_cache_line in command_cache['users_results']:
+                            locals_dict.update(usr_cache_line['result'])
+                            tele_user = self.env['telegram.user'].search([('id', '=', usr_cache_line['user_id']),
+                                                                          ('chat_id', '=', tele_message.chat.id)])
+                            if len(tele_user) > 0:
+                                self.render_and_send(bot, tele_message.chat.id, res[0].action_response_template, locals_dict, tele_message=tele_message)
+                            need_computed_answer = False
+                if need_computed_answer:
+                    _logger.debug('No cache. Computing answer ...')
                     safe_eval(res[0].action_code, globals_dict, locals_dict, mode="exec", nocopy=True)
-                    locals_dict.update(locals_dict['result'])
-                    self.render_and_send(bot, res[0].action_response_template, locals_dict, tele_message=tele_message)
+                    self.render_and_send(bot, tele_message.chat.id, res[0].action_response_template, locals_dict, tele_message=tele_message)
             elif len(res) > 1:
                 raise ValidationError('Multiple values for %s' % res)
             else:
-                bot.send_message(tele_message.chat.id, 'No such command: < %s > .' % tele_message.text)
+                bot.send_message(tele_message.chat.id, 'No such command:  %s  .' % tele_message.text)
 
     @api.model
     def odoo_listener(self, message, bot):
@@ -109,7 +117,9 @@ class TelegramCommand(models.Model):
         registry = openerp.registry(bot.db_name)
         db = openerp.sql_db.db_connect(bot.db_name)
         with openerp.api.Environment.manage(), db.cursor() as cr:
-            if bus_message['update_cache']:
+            _logger.debug('bus_message')
+            _logger.debug(bus_message)
+            if bus_message['action'] == 'update_cache':
                 self.update_cache(bus_message, bot)
             else:
                 command_id = registry['telegram.command'].search(cr, SUPERUSER_ID, [('name', '=', bus_message['action'])])
@@ -118,21 +128,23 @@ class TelegramCommand(models.Model):
                     if command.notify_code:
                         locals_dict = {'bot': bot, 'bus_message': bus_message, 'TelegramUser': TelegramUser}
                         safe_eval(command.notify_code, globals_dict, locals_dict, mode="exec", nocopy=True)
-                        self.render_and_send(bot, command.notify_template, locals_dict, bus_message=bus_message)
+                        _logger.debug('locals_dict')
+                        _logger.debug(locals_dict)
+                        self.render_and_send(bot, bus_message['chat_id'], command.notify_template, locals_dict, bus_message=bus_message)
                     else:
-                        pass  # No response code for this command. Response code is optional.
+                        pass  # No notify_code for this command. Response code is optional.
                 elif len(command) > 1:
                     raise ValidationError('Multiple values for %s' % command)
 
-    def render_and_send(self, bot, template, locals_dict, bus_message=False, tele_message=False):
+    def render_and_send(self, bot, chat_id, template, locals_dict, bus_message=False, tele_message=False):
         """Response or notify user. template - xml to render with locals_dict."""
         qweb = self.pool['ir.qweb']
         context = QWebContext(self._cr, self._uid, {})
         ctx = context.copy()
-        ctx.update({'locals_dict': locals_dict})
+        ctx.update({'locals_dict': locals_dict['result']})
         dom = etree.fromstring(template)
         rend = qweb.render_node(dom, ctx)
-        _logger.debug('render_and_send' + rend)
+        _logger.debug('render_and_send(): ' + rend)
         if bus_message:
             chat_id = bus_message['chat_id']
         elif tele_message:
@@ -157,17 +169,29 @@ class TelegramCommand(models.Model):
             command = self.env['telegram.command'].browse(command_id)
             locals_dict = {'bot': bot, 'env': self.env,'bus_message': bus_message, 'TelegramUser': TelegramUser}
             if len(command.group_ids):
-                users_results = []
-                for group_id in command.group_ids:
-                    users_ids = self.env['res.user'].search([('groups_ids', '=', group_id)])
-                    for user_id in users_ids:
-                        locals_dict.update({'user_id': user_id})
-                        safe_eval(command.action_code, globals_dict, locals_dict, mode="exec", nocopy=True)
-                        users_results += {'user_id': user_id, 'result': locals_dict['result']}
+                all_users_result = False
+                users_results = {}
+                users = self.env['res.user'].search([('groups_ids', 'in', command.group_ids)])
+                for user in users:
+                    locals_dict.update({'user_id': user.id})
+                    safe_eval(command.action_code, globals_dict, locals_dict, mode="exec", nocopy=True)
+                    users_results.update({'user_id': user.id, 'result': locals_dict['result']})
             else:
                 users_results = False
                 safe_eval(command.action_code, globals_dict, locals_dict, mode="exec", nocopy=True)
-            bot.cache.update(command.id, locals_dict['result'], users_results)
+                all_users_result = locals_dict['result']
+            bot.cache.update(command.id, all_users_result, users_results)
+
+    def access_granted(self, command, chat_id):
+        # granted or not ?
+        if command.name == '/login':
+            return True
+        tele_user = self.env['telegram.user'].search([('chat_id', '=', chat_id)])
+        user_groups = set(tele_user.res_user.groups_id)
+        command_groups = set(self.env['res.groups'].search([('telegram_command_id', '=', command.id)]))
+        if len(command_groups.intersection(user_groups)):
+            return True
+        return False
 
 
 class TelegramUser(models.TransientModel):
@@ -190,13 +214,6 @@ class TelegramUser(models.TransientModel):
             login_token = tele_user_obj.token  # user already exists
 
         return login_token
-
-    @staticmethod
-    def check_access(tele_env, chat_id, command):
-        pass
-        # tele_user_id = tele_env['telegram.user'].search([('chat_id', '=', chat_id)])
-        # tele_user_obj = tele_env['telegram.user'].browse(tele_user_id)
-        # TODO
 
 
 class ResGroups(models.Model):
