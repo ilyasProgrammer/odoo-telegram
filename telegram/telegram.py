@@ -66,6 +66,7 @@ class TelegramCommand(models.Model):
     _name = "telegram.command"
 
     name = fields.Char()
+    description = fields.Char()
     cacheable = fields.Boolean()
     action_code = fields.Char()
     action_response_template = fields.Char()
@@ -79,19 +80,28 @@ class TelegramCommand(models.Model):
         # python_code execution method
         for tele_message in messages:  # messages from telegram server
             res = self.env['telegram.command'].search([('name', '=', tele_message.text)], limit=1)
+            command = res[0] if len(res) > 0 else False
             if len(res) == 1:
-                if not self.access_granted(res[0], tele_message.chat.id):
-                    bot.send_message(tele_message.chat.id, 'Access denied. Command:  %s  .' % tele_message.text)
+                tele_user = self.env['telegram.user'].search([('chat_id', '=', tele_message.chat.id)])
+                if command.name not in ['/login', '/help']:
+                    if not tele_user.logged_in:
+                        bot.send_message(tele_message.chat.id, 'You have to /login first.')
+                        return
+                    if not self.access_granted(command, tele_message.chat.id):
+                        bot.send_message(tele_message.chat.id, 'Access denied. Command:  %s  .' % tele_message.text)
+                        return
+                if command.name == '/login' and tele_user.logged_in:
+                    bot.send_message(tele_message.chat.id, 'You already logged in.')
                     return
                 locals_dict = {'env': self.env, 'bot': bot, 'tele_message': tele_message, 'TelegramUser': TelegramUser}
                 need_computed_answer = True
-                if res[0].id in bot.cache.vals:
-                    command_cache = bot.cache.vals[res[0].id]
+                if command.id in bot.cache.vals:
+                    command_cache = bot.cache.vals[command.id]
                     _logger.debug('got cache for this command')
                     _logger.debug(command_cache)
                     if command_cache['result']:
                         locals_dict.update(command_cache['result'])
-                        self.render_and_send(bot, tele_message.chat.id, res[0].action_response_template, locals_dict, tele_message=tele_message)
+                        self.render_and_send(bot, tele_message.chat.id, command.action_response_template, locals_dict, tele_message=tele_message)
                         need_computed_answer = False
                         _logger.debug('Sent answer from cache')
                     elif len(command_cache['users_results']):
@@ -100,16 +110,16 @@ class TelegramCommand(models.Model):
                             tele_user = self.env['telegram.user'].search([('id', '=', usr_cache_line['user_id']),
                                                                           ('chat_id', '=', tele_message.chat.id)])
                             if len(tele_user) > 0:
-                                self.render_and_send(bot, tele_message.chat.id, res[0].action_response_template, locals_dict, tele_message=tele_message)
+                                self.render_and_send(bot, tele_message.chat.id, command.action_response_template, locals_dict, tele_message=tele_message)
                             need_computed_answer = False
                 if need_computed_answer:
                     _logger.debug('No cache. Computing answer ...')
-                    safe_eval(res[0].action_code, globals_dict, locals_dict, mode="exec", nocopy=True)
-                    self.render_and_send(bot, tele_message.chat.id, res[0].action_response_template, locals_dict, tele_message=tele_message)
+                    safe_eval(command.action_code, globals_dict, locals_dict, mode="exec", nocopy=True)
+                    self.render_and_send(bot, tele_message.chat.id, command.action_response_template, locals_dict, tele_message=tele_message)
             elif len(res) > 1:
                 raise ValidationError('Multiple values for %s' % res)
             else:
-                bot.send_message(tele_message.chat.id, 'No such command:  %s  .' % tele_message.text)
+                bot.send_message(tele_message.chat.id, 'No such command:  %s  . Use /help to see all commands.' % tele_message.text)
 
     @api.model
     def odoo_listener(self, message, bot):
@@ -184,11 +194,11 @@ class TelegramCommand(models.Model):
 
     def access_granted(self, command, chat_id):
         # granted or not ?
-        if command.name == '/login':
-            return True
+        command_groups = set(self.env['res.groups'].search([('telegram_command_id', '=', command.id)]))
+        if len(command_groups) == 0:
+            return True  # If no groups than every one can use this command
         tele_user = self.env['telegram.user'].search([('chat_id', '=', chat_id)])
         user_groups = set(tele_user.res_user.groups_id)
-        command_groups = set(self.env['res.groups'].search([('telegram_command_id', '=', command.id)]))
         if len(command_groups.intersection(user_groups)):
             return True
         return False
@@ -207,13 +217,19 @@ class TelegramUser(models.TransientModel):
         tele_user_id = tele_env['telegram.user'].search([('chat_id', '=', chat_id)])
         if len(tele_user_id) == 0:
             login_token = res_users.random_token()
-            vals = {'chat_id': chat_id, 'token': login_token}
+            vals = {'chat_id': chat_id, 'token': login_token, 'logged_in': False}
             new_tele_user = tele_env['telegram.user'].create(vals)
         else:
             tele_user_obj = tele_env['telegram.user'].browse(tele_user_id.id)
             login_token = tele_user_obj.token  # user already exists
 
         return login_token
+
+    @staticmethod
+    def logout(env, chat_id):
+        tele_user_id = env['telegram.user'].search([('chat_id', '=', chat_id)])
+        tele_user_id.logged_in = False
+
 
 
 class ResGroups(models.Model):
