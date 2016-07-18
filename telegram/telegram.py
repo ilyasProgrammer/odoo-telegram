@@ -42,6 +42,7 @@ class TelegramCommand(models.Model):
     name = fields.Char()
     description = fields.Char(help='What command do')
     cacheable = fields.Boolean(help='Cache this command or not')
+    universal = fields.Boolean(help='Same answer for all users or not. Meaningful only if cacheable = True.', default=False)
     response_code = fields.Char(help='Python code to execute task. Launched by telegram_listener')
     response_template = fields.Char(help='Template of message, that user will receive immediately after he send command')
     notify_code = fields.Char(help='Python code to get data, computed after executed response code. Launched by odoo_listener (bus)')
@@ -69,19 +70,19 @@ class TelegramCommand(models.Model):
                     return
                 locals_dict = {'env': self.env, 'bot': bot, 'tele_message': tele_message, 'TelegramUser': TelegramUser}
                 need_computed_answer = True
-                if command.id in bot.cache.vals:
-                    command_cache = bot.cache.vals[command.id]
+                command_cache = bot.cache.get_value(command.id)
+                if command_cache:
                     _logger.debug('got cache for this command')
                     _logger.debug(command_cache)
-                    if command_cache['result']:
-                        locals_dict.update(command_cache['result'])
+                    if command.universal:
+                        locals_dict['result'] = command_cache
                         self.render_and_send(bot, tele_message.chat.id, command.response_template, locals_dict, tele_message=tele_message)
                         need_computed_answer = False
                         _logger.debug('Sent answer from cache')
-                    elif len(command_cache['users_results']):
-                        for usr_cache_line in command_cache['users_results']:
-                            locals_dict.update(usr_cache_line['result'])
-                            tele_user = self.env['telegram.user'].search([('id', '=', usr_cache_line['user_id']),
+                    else:
+                        for usr_id in command_cache:
+                            locals_dict['result'] = command_cache[usr_id]
+                            tele_user = self.env['telegram.user'].search([('id', '=', usr_id),
                                                                           ('chat_id', '=', tele_message.chat.id)])
                             if len(tele_user) > 0:
                                 self.render_and_send(bot, tele_message.chat.id, command.response_template, locals_dict, tele_message=tele_message)
@@ -152,19 +153,14 @@ class TelegramCommand(models.Model):
         for command_id in bus_message['found_commands_ids']:
             command = self.env['telegram.command'].browse(command_id)
             locals_dict = {'bot': bot, 'env': self.env,'bus_message': bus_message, 'TelegramUser': TelegramUser}
-            if len(command.group_ids):
-                all_users_result = False
-                users_results = {}
+            if command.universal:
+                safe_eval(command.response_code, globals_dict, locals_dict, mode="exec", nocopy=True)
+                bot.cache.set_value(command_id, locals_dict['result'])
+            else:
                 users = self.env['res.user'].search([('groups_ids', 'in', command.group_ids)])
                 for user in users:
-                    locals_dict.update({'user_id': user.id})
                     safe_eval(command.response_code, globals_dict, locals_dict, mode="exec", nocopy=True)
-                    users_results.update({user.id: {'user_id': user.id, 'result': locals_dict['result']}})
-            else:
-                users_results = False
-                safe_eval(command.response_code, globals_dict, locals_dict, mode="exec", nocopy=True)
-                all_users_result = locals_dict['result']
-            bot.cache.update(command.id, all_users_result, users_results)
+                    bot.cache.set_value(command_id, locals_dict['result'], user.id)
 
     def access_granted(self, command, chat_id):
         # granted or not ?

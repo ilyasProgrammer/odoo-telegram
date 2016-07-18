@@ -317,9 +317,9 @@ class CommandCache(object):
 
     def get_value(self, command_id, user_id=0):
         if user_id:
-            res = self._vals[command_id]['users_results'][user_id]
+            ret = self._vals[command_id]['users_results'][user_id]
         else:
-            res = self._vals[command_id]['result']
+            ret = self._vals[command_id]['result']
         return ret
 
 

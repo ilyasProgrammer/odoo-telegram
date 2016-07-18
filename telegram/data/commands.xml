@@ -48,6 +48,7 @@ TelegramUser.logout(env, tele_message.chat.id)
         <field name="name">/users</field>
         <field name="description">Get list of database users and theirs last login time</field>
         <field name="cacheable">True</field>
+        <field name="universal">True</field>
         <field name="group_ids" eval="[(4, ref('base.group_configuration')),
                                        (4, ref('base.group_erp_manager')),
                                        (4, ref('base.group_system'))]" />
