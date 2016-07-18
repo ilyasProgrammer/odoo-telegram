@@ -22,26 +22,10 @@ _logger.setLevel(logging.DEBUG)
 # telebot.logger.setLevel(logging.DEBUG)
 
 
-def get_parameter(db_name, key):
-    db = openerp.sql_db.db_connect(db_name)
-    registry = openerp.registry(db_name)
-    result = None
-    with openerp.api.Environment.manage(), db.cursor() as cr:
-        res = registry['ir.config_parameter'].search(cr, SUPERUSER_ID, [('key', '=', key)])
-        if len(res) == 1:
-            val = registry['ir.config_parameter'].browse(cr, SUPERUSER_ID, res[0])
-            result = val.value
-        elif len(res) < 1:
-            _logger.debug('# WARNING. No value for key %s' % key)
-            return None
-    return result
-
-
 globals_dict = {
     'datetime': datetime,
     'dateutil': dateutil,
     'time': time,
-    'get_parameter': get_parameter,
     '_logger': _logger,
 }
 
