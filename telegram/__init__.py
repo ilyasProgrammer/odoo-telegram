@@ -316,6 +316,8 @@ class CommandCache(object):
             self._vals[command_id] = {'result': result, 'users_results': False}
 
     def get_value(self, command_id, user_id=0):
+        if command_id not in self._vals:
+            return False
         if user_id:
             ret = self._vals[command_id]['users_results'][user_id]
         else:

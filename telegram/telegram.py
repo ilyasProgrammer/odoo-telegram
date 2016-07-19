@@ -68,29 +68,29 @@ class TelegramCommand(models.Model):
                 if command.name == '/login' and tele_user.logged_in:
                     bot.send_message(tele_message.chat.id, 'You already logged in.')
                     return
-                locals_dict = {'env': self.env, 'bot': bot, 'tele_message': tele_message, 'TelegramUser': TelegramUser}
+                data = {'env': self.env, 'bot': bot, 'tele_message': tele_message, 'TelegramUser': TelegramUser}
                 need_computed_answer = True
                 command_cache = bot.cache.get_value(command.id)
                 if command_cache:
                     _logger.debug('got cache for this command')
                     _logger.debug(command_cache)
                     if command.universal:
-                        locals_dict['result'] = command_cache
-                        self.render_and_send(bot, tele_message.chat.id, command.response_template, locals_dict, tele_message=tele_message)
+                        data['result'] = command_cache
+                        self.render_and_send(bot, tele_message.chat.id, command.response_template, data, tele_message=tele_message)
                         need_computed_answer = False
                         _logger.debug('Sent answer from cache')
                     else:
                         for usr_id in command_cache:
-                            locals_dict['result'] = command_cache[usr_id]
+                            data['result'] = command_cache[usr_id]
                             tele_user = self.env['telegram.user'].search([('id', '=', usr_id),
                                                                           ('chat_id', '=', tele_message.chat.id)])
                             if len(tele_user) > 0:
-                                self.render_and_send(bot, tele_message.chat.id, command.response_template, locals_dict, tele_message=tele_message)
+                                self.render_and_send(bot, tele_message.chat.id, command.response_template, data, tele_message=tele_message)
                             need_computed_answer = False
                 if need_computed_answer:
                     _logger.debug('No cache. Computing answer ...')
-                    safe_eval(command.response_code, globals_dict, locals_dict, mode="exec", nocopy=True)
-                    self.render_and_send(bot, tele_message.chat.id, command.response_template, locals_dict, tele_message=tele_message)
+                    safe_eval(command.response_code, globals_dict, data, mode="exec", nocopy=True)
+                    self.render_and_send(bot, tele_message.chat.id, command.response_template, data, tele_message=tele_message)
             elif len(res) > 1:
                 raise ValidationError('Multiple values for %s' % res)
             else:
@@ -111,22 +111,22 @@ class TelegramCommand(models.Model):
                 command = registry['telegram.command'].browse(cr, SUPERUSER_ID, command_id)
                 if len(command) == 1:
                     if command.notify_code:
-                        locals_dict = {'bot': bot, 'bus_message': bus_message, 'TelegramUser': TelegramUser}
-                        safe_eval(command.notify_code, globals_dict, locals_dict, mode="exec", nocopy=True)
-                        _logger.debug('locals_dict')
-                        _logger.debug(locals_dict)
-                        self.render_and_send(bot, bus_message['chat_id'], command.notify_template, locals_dict, bus_message=bus_message)
+                        data = {'bot': bot, 'bus_message': bus_message, 'TelegramUser': TelegramUser}
+                        safe_eval(command.notify_code, globals_dict, data, mode="exec", nocopy=True)
+                        _logger.debug('data')
+                        _logger.debug(data)
+                        self.render_and_send(bot, bus_message['chat_id'], command.notify_template, data, bus_message=bus_message)
                     else:
                         pass  # No notify_code for this command. Response code is optional.
                 elif len(command) > 1:
                     raise ValidationError('Multiple values for %s' % command)
 
-    def render_and_send(self, bot, chat_id, template, locals_dict, bus_message=False, tele_message=False):
-        """Response or notify user. template - xml to render with locals_dict."""
+    def render_and_send(self, bot, chat_id, template, data, bus_message=False, tele_message=False):
+        """Response or notify user. template - xml to render with data."""
         qweb = self.pool['ir.qweb']
         context = QWebContext(self._cr, self._uid, {})
         ctx = context.copy()
-        ctx.update({'locals_dict': locals_dict['result']})
+        ctx.update({'data': data['result']})
         dom = etree.fromstring(template)
         rend = qweb.render_node(dom, ctx)
         _logger.debug('render_and_send(): ' + rend)
@@ -152,15 +152,15 @@ class TelegramCommand(models.Model):
         _logger.debug('update_cache() - command from bus')
         for command_id in bus_message['found_commands_ids']:
             command = self.env['telegram.command'].browse(command_id)
-            locals_dict = {'bot': bot, 'env': self.env,'bus_message': bus_message, 'TelegramUser': TelegramUser}
+            data = {'bot': bot, 'env': self.env,'bus_message': bus_message, 'TelegramUser': TelegramUser}
             if command.universal:
-                safe_eval(command.response_code, globals_dict, locals_dict, mode="exec", nocopy=True)
-                bot.cache.set_value(command_id, locals_dict['result'])
+                safe_eval(command.response_code, globals_dict, data, mode="exec", nocopy=True)
+                bot.cache.set_value(command_id, data['result'])
             else:
                 users = self.env['res.user'].search([('groups_ids', 'in', command.group_ids)])
                 for user in users:
-                    safe_eval(command.response_code, globals_dict, locals_dict, mode="exec", nocopy=True)
-                    bot.cache.set_value(command_id, locals_dict['result'], user.id)
+                    safe_eval(command.response_code, globals_dict, data, mode="exec", nocopy=True)
+                    bot.cache.set_value(command_id, data['result'], user.id)
 
     def access_granted(self, command, chat_id):
         # granted or not ?

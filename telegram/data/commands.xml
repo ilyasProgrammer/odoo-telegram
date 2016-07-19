@@ -12,7 +12,7 @@ for command in all_commands:
     result['all_commands'] += str(command.name) + ' - ' + str(command.description)+ '\n'
         </field>
         <field name="response_template" type="xml">
-            <t><t t-raw="locals_dict['all_commands']"/></t>
+            <t><t t-raw="data['all_commands']"/></t>
         </field>
     </record>
 
@@ -22,14 +22,14 @@ for command in all_commands:
         <field name="cacheable">False</field>
         <field name="response_code">result = {}
 result['login_token'] = TelegramUser.register_user(env, tele_message.chat.id)
-res = env['ir.config_parameter'].search([('key', '=', 'web.base.url')]))
+res = env['ir.config_parameter'].search([('key', '=', 'web.base.url')])
 if len(res) == 1:
-    result['web_base'] = res[0]
+    result['web_base'] = res[0].value
 else:
     _logger.debug('# WARNING. No value for key web.base.url')
         </field>
-        <field name="response_template" type="xml"><t>Please follow &lt;a href="<t t-esc="locals_dict['web_base']"/>/web/login/telegram?token=<t t-esc="locals_dict['login_token']"/>">login link&lt;/a&gt;</t></field>
-        <field name="notify_template" type="xml"><t>Hello <t t-esc="locals_dict['odoo_user_name']"/>!</t></field>
+        <field name="response_template" type="xml"><t>Please follow &lt;a href="<t t-esc="data['web_base']"/>/web/login/telegram?token=<t t-esc="data['login_token']"/>">login link&lt;/a&gt;</t></field>
+        <field name="notify_template" type="xml"><t>Hello <t t-esc="data['odoo_user_name']"/>!</t></field>
         <field name="notify_code">result = {}
 result['odoo_user_name'] = bus_message['odoo_user_name']</field>
     </record>
@@ -58,7 +58,7 @@ for r in env['res.users'].search([]):
     result['users_logintime_list'] += '&lt;pre&gt;' + str(r.name) +', last login at: ' + str(r.login_date)+ '&lt;/pre&gt;'
         </field>
         <field name="response_template" type="xml">
-            <t><t t-raw="locals_dict['users_logintime_list']"/></t>
+            <t><t t-raw="data['users_logintime_list']"/></t>
         </field>
     </record>
 
@@ -71,7 +71,7 @@ telegram_user = env['telegram.user'].search([('chat_id','=', tele_message.chat.i
 result['telegram_user'] += 'Congratulations! You are ' + '&lt;b&gt;' +str(telegram_user.res_user.name) + '&lt;/b&gt;' +'.'
         </field>
         <field name="response_template" type="xml">
-            <t><t t-raw="locals_dict['telegram_user']"/></t>
+            <t><t t-raw="data['telegram_user']"/></t>
         </field>
     </record>
     <!--<record model="telegram.command" id="echo_command">-->
