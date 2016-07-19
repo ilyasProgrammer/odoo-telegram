@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<openerp>
+<data>
+    <record model="telegram.command" id="mail_command">
+        <field name="name">/mail</field>
+        <field name="description">Get new messages or subscribe to it</field>
+        <field name="cacheable">False</field>
+        <field name="response_code">data = {'all_commands':''}
+        </field>
+    </record>
+</data>
+</openerp>
