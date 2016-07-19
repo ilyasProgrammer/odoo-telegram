@@ -154,7 +154,7 @@ class TelegramCommand(models.Model):
         if len(found_commands_ids):
             _logger.debug('update_cache_bus_message(): commands will got cache update:')
             _logger.debug(found_commands_ids)
-            message = {'update_cache': True, 'model': context['active_model'], 'found_commands_ids': found_commands_ids}
+            message = {'action': 'update_cache', 'update_cache': True, 'model': context['active_model'], 'found_commands_ids': found_commands_ids}
             self.pool['telegram.bus'].sendone(cr, SUPERUSER_ID, 'telegram_channel', message)
 
     def update_cache(self, bus_message, bot):

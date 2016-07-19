@@ -308,7 +308,7 @@ class CommandCache(object):
         self._vals = {}
 
     def set_value(self, command_id, result=False, user_id=0):
-        if command_id.id not in self._vals:
+        if command_id not in self._vals:
             self._vals.update({command_id: {}})
         if user_id:
             self._vals[command_id] = {'result': False, 'users_results': {user_id: result}}
