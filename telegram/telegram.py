@@ -40,13 +40,13 @@ class TelegramCommand(models.Model):
     _name = "telegram.command"
 
     name = fields.Char()
-    description = fields.Char(help='What command do')
-    cacheable = fields.Boolean(help='Cache this command or not')
+    description = fields.Char(help='What command does')
+    cacheable = fields.Boolean(help='Needs cache calculation or not')
     universal = fields.Boolean(help='Same answer for all users or not. Meaningful only if cacheable = True.', default=False)
     response_code = fields.Char(help='Python code to execute task. Launched by telegram_listener')
-    response_template = fields.Char(help='Template of message, that user will receive immediately after he send command')
+    response_template = fields.Char(help='Message template, that user will receive immediately after he send command')
     notify_code = fields.Char(help='Python code to get data, computed after executed response code. Launched by odoo_listener (bus)')
-    notify_template = fields.Char(help='Template of message, that user will receive after job is done')
+    notify_template = fields.Char(help='Message template, that user will receive after job is done')
     group_ids = fields.One2many('res.groups', 'telegram_command_id', help='Who can use this command')
     model_ids = fields.Many2many('ir.model', 'command_to_model_rel', 'command_id', 'model_id', help='These models changes initiates cache updates for this command.')
 
