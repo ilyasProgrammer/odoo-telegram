@@ -19,7 +19,7 @@ data['partner_message'] = env['mail.message'].browse(bus_message['active_id'])
 data['partner_message_from'] = data['partner_message'].author_id.name
 data['partner_message_subject'] = data['partner_message'].subject
 data['partner_message_date'] = data['partner_message'].date
-data['partner_message_body'] = data['partner_message'].body
+data['partner_message_body'] = tools.html2plaintext(data['partner_message'].body)
 for user in command.res_users_ids:
     if user.partner_id.id in data['partner_message'].partner_ids.ids:
         _logger.debug('q1')
@@ -33,8 +33,8 @@ for user in command.res_users_ids:
 <b>New message !</b>
 <b>From:</b> <t t-raw="data['partner_message_from']"/>
 <b>Subject:</b> <t t-raw="data['partner_message_subject']"/>
-<b>Date:</b> <t t-raw="data['partner_message_date']"/>
-<b>Text:</b><t t-esc="data['partner_message_body']"/>
+<b>Time:</b> <t t-raw="data['partner_message_date']"/>
+<b>Text: </b><t t-esc="data['partner_message_body']"/>
             </t>
         </field>
     </record>

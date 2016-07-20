@@ -1,6 +1,7 @@
 # -*- coding:utf-8 -*-
 
 import openerp
+from openerp import tools
 from openerp import api, models, fields
 import openerp.addons.auth_signup.res_users as res_users
 from openerp.http import request
@@ -254,6 +255,7 @@ globals_dict = {
     'dateutil': dateutil,
     'time': time,
     '_logger': _logger,
+    'tools': tools,
     'TelegramUser': TelegramUser
 }
 
