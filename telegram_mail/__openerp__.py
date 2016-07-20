@@ -17,8 +17,7 @@
     ],
     "external_dependencies": {},
     "data": [
-        "data/ir_action_server.xml",
-        "data/it_action_rules.xml",
+        "data/ir_action_rules.xml",
         "data/command.xml",
     ],
     "qweb": [
