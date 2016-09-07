@@ -17,8 +17,16 @@ from openerp.tools.safe_eval import safe_eval
 from openerp.tools.translate import _
 from openerp.addons.base.ir.ir_qweb import QWebContext
 import openerp
+from openerp import SUPERUSER_ID
 
 _logger = logging.getLogger('# ' + __name__)
+_logger.setLevel(logging.DEBUG)
+
+
+def get_registry(db_name):
+    openerp.modules.registry.RegistryManager.check_registry_signaling(db_name)
+    registry = openerp.registry(db_name)
+    return registry
 
 
 class TelegramCommand(models.Model):
@@ -106,7 +114,7 @@ Check Help Tab for the rest variables.
 
     # bus listener
     @api.model
-    def odoo_listener(self, message, bot):
+    def odoo_listener(self, message, dbname, threads_bundles_list, bot):
         bus_message = message['message']  # message from bus, not from telegram server.
         _logger.debug('bus_message')
         _logger.debug(bus_message)
@@ -114,6 +122,9 @@ Check Help Tab for the rest variables.
             self.update_cache(bus_message, bot)
         elif bus_message['action'] == 'send_notifications':
             self.send_notifications(bus_message, bot)
+        elif bus_message['action'] == 'token_changed':
+            _logger.info('token_changed')
+            self.build_new_proc_bundle(bus_message['dbname'], threads_bundles_list, bot)
 
     @api.multi
     def get_response(self, locals_dict=None, tsession=None):
@@ -415,52 +426,48 @@ Check Help Tab for the rest variables.
                     rendered = command.render_notification(locals_dict, tsession)
                 command.send(bot, rendered, tsession)
 
-
-class TelegramManager(models.Model):
-    _name = "telegram.manager"
-
-    def __init__(self, threads_bundles_list, OdooTelegramThread):
-        super(TelegramManager, self).__init__(threads_bundles_list, OdooTelegramThread)
-        self.threads_bundles_list = threads_bundles_list
-        self.OdooTelegramThread = OdooTelegramThread
-        # this called by run() in while self.alive cycle
-
-
-
     @api.model
     def telegram_proceed_ir_config(self):
         _logger.info('telegram_proceed_ir_config')
         active_id = self._context['active_id']
         parameter = self.env['ir.config_parameter'].browse(active_id)
         if parameter.key == 'telegram.token':
-            self.build_new_proc_bundle(self._cr.dbname)
+            message = {'action': 'token_changed',
+                       'dbname': self._cr.dbname,
+                       }
+            self.env['telegram.bus'].sendone('telegram_channel', message)
+            # self.build_new_proc_bundle(self._cr.dbname)
 
-    def build_new_proc_bundle(self, dbname):
+    def build_new_proc_bundle(self, dbname, threads_bundles_list, bot):
         def listener(messages):
-            try:
-                self.env['telegram.command'].telegram_listener(messages, bot)
-            except:
-                _logger.error('Error while processing Telegram messages: %s' % messages, exc_info=True)
+            db = openerp.sql_db.db_connect(dbname)
+            registry = get_registry(dbname)
+            with openerp.api.Environment.manage(), db.cursor() as cr:
+                try:
+                    registry['telegram.command'].telegram_listener(cr, SUPERUSER_ID, messages, bot)
+                except:
+                    _logger.error('Error while proccessing Telegram messages: %s' % messages, exc_info=True)
 
         token = self.env['ir.config_parameter'].get_param('telegram.token')
         if token and len(token) > 10:
-            res = self.get_bundle_action(dbname)
+            res = self.get_bundle_action(dbname, threads_bundles_list)
             if res['action'] == 'complete':
                 _logger.info("Database %s just obtained new token.", dbname)
                 num_telegram_threads = int(self.env['ir.config_parameter'].get_param('telegram.telegram_threads'))
                 bot = TeleBotMod(token, threaded=True, num_threads=num_telegram_threads)
                 bot.telegram_threads = num_telegram_threads
                 bot.set_update_listener(listener)
-                bot.db_name = dbname  # needs in telegram_listener()
-                bot_thread = BotPollingThread(self.interval, bot)
+                bot.dbname = dbname  # needs in telegram_listener()
+                bot_thread = BotPollingThread(bot)
                 bot_thread.start()
                 res['bundle']['token'] = token
                 res['bundle']['bot'] = bot
                 res['bundle']['bot_thread'] = bot_thread
+                dumpclean(threads_bundles_list)
 
-    def get_bundle_action(self, dbname):
-        for bundle in self.threads_bundles_list:
-            if bundle['db_name'] == dbname:
+    def get_bundle_action(self, dbname, threads_bundles_list):
+        for bundle in threads_bundles_list:
+            if bundle['dbname'] == dbname:
                 if bundle['bot']:
                     # destroy old threads and create new
                     return {'action': 'update', 'bundle': bundle}
@@ -548,10 +555,10 @@ class BotPollingThread(threading.Thread):
         For every database with token one bot and one bot_polling is created.
     """
 
-    def __init__(self, interval, bot):
+    def __init__(self, bot):
         threading.Thread.__init__(self, name='BotPollingThread')
         self.daemon = True
-        self.interval = interval
+        self.interval = 10
         self.bot = bot
 
     def run(self):

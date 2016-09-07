@@ -33,16 +33,16 @@ def get_registry(db_name):
     return registry
 
 
-def need_new_bundle(threads_bundles_list, db_name):
+def need_new_bundle(threads_bundles_list, dbname):
     for bundle in threads_bundles_list:
-        if bundle['db_name'] == db_name:
+        if bundle['dbname'] == dbname:
             return False
     return True
 
 
-def get_parameter(db_name, key):
-    db = openerp.sql_db.db_connect(db_name)
-    registry = get_registry(db_name)
+def get_parameter(dbname, key):
+    db = openerp.sql_db.db_connect(dbname)
+    registry = get_registry(dbname)
     with openerp.api.Environment.manage(), db.cursor() as cr:
         return registry['ir.config_parameter'].get_param(cr, SUPERUSER_ID, key)
 #
@@ -104,23 +104,21 @@ class WorkerTelegram(Worker):
         self.singles_ran = False  # indicates one instance of odoo_dispatcher and odoo_thread exists
         self.odoo_thread = False
         self.odoo_dispatch = False
-        self.manager = False
 
     def process_work(self):
         # this called by run() in while self.alive cycle
         db_names = _db_list()
-        for db_name in db_names:
-            registry = get_registry(db_name)
+        for dbname in db_names:
+            registry = get_registry(dbname)
             if registry.get('telegram.bus', False):
                 # _logger.info("telegram.bus in %s" % db_name)
-                if not need_new_bundle(self.threads_bundles_list, db_name):
+                if not need_new_bundle(self.threads_bundles_list, dbname):
                     continue
-                _logger.info("telegram.bus Need to create new bundle for %s" % db_name)
+                _logger.info("telegram.bus Need to create new bundle for %s" % dbname)
                 self.odoo_dispatch = telegram_bus.TelegramDispatch().start()
                 self.odoo_thread = OdooTelegramThread(self.interval, self.odoo_dispatch, self.threads_bundles_list)
-                self.manager = telegram.TelegramManager(self.odoo_thread, self.threads_bundles_list)
                 self.odoo_thread.start()
-                vals = {'db_name': db_name,
+                vals = {'dbname': dbname,
                         'odoo_thread': self.odoo_thread,
                         'bot': False,
                         'odoo_dispatch': self.odoo_dispatch}
@@ -131,7 +129,7 @@ class WorkerTelegram(Worker):
         for bundle in self.threads_bundles_list:
             bot = bundle['bot']
             wp = bot.worker_pool
-            new_num_threads = int(get_parameter(bot.db_name, 'telegram.telegram_threads'))
+            new_num_threads = int(get_parameter(bot.dbname, 'telegram.telegram_threads'))
             diff = new_num_threads - bot.telegram_threads
             if new_num_threads > bot.telegram_threads:
                 # add new threads
@@ -184,30 +182,30 @@ class OdooTelegramThread(threading.Thread):
     def run(self):
         _logger.info("OdooTelegramThread started with %s threads" % self.odoo_threads)
 
-        def listener(message, bot):
-            db = openerp.sql_db.db_connect(bot.db_name)
-            registry = get_registry(bot.db_name)
+        def listener(message, dbname, threads_bundles_list, bot):
+            db = openerp.sql_db.db_connect(dbname)
+            registry = get_registry(dbname)
             with openerp.api.Environment.manage(), db.cursor() as cr:
                 try:
-                    registry['telegram.command'].odoo_listener(cr, SUPERUSER_ID, message, bot)
+                    registry['telegram.command'].odoo_listener(cr, SUPERUSER_ID, message, dbname, threads_bundles_list, bot)
                 except:
                     _logger.error('Error while proccessing Odoo message: %s' % message, exc_info=True)
 
         while True:
             # Exeptions ?
             db_names = _db_list()
-            for db_name in db_names:  # successively check notifications in all bases with token
-                token = get_parameter(db_name, 'telegram.token')
+            for dbname in db_names:  # successively check notifications in all bases with token
+                token = get_parameter(dbname, 'telegram.token')
                 if not token:
                     continue
                 # ask TelegramDispatch about some messages.
-                msg_list = self.dispatch.poll(dbname=db_name, channels=['telegram_channel'], last=self.last)
+                msg_list = self.dispatch.poll(dbname=dbname, channels=['telegram_channel'], last=self.last)
                 for msg in msg_list:
                     if msg['id'] > self.last:
                         self.last = msg['id']
-                    ls = [s for s in self.threads_bundles_list if s['token'] == token]
+                    ls = [s for s in self.threads_bundles_list if s['dbname'] == dbname]
                     if len(ls) == 1:
-                        self.odoo_thread_pool.put(listener, msg, ls[0]['bot'])
+                        self.odoo_thread_pool.put(listener, msg, dbname, self.threads_bundles_list, ls[0]['bot'])
                         if self.odoo_thread_pool.exception_event.wait(0):
                             self.odoo_thread_pool.raise_exceptions()
                     elif len(ls) > 1:
@@ -220,8 +218,8 @@ class OdooTelegramThread(threading.Thread):
     def get_num_of_children():
         db_names = _db_list()
         n = 1  # its minimum
-        for db_name in db_names:
-            num = get_parameter(db_name, 'telegram.odoo_threads')
+        for dbname in db_names:
+            num = get_parameter(dbname, 'telegram.odoo_threads')
             if num:
                 n += int(num)
         return n
@@ -257,3 +255,25 @@ class OdooTelegramThread(threading.Thread):
             _logger.info("Odoo workers decreased and now its amount = %s" % running_workers_num(wp.workers))
 
 
+
+
+def dump(obj):
+  for attr in dir(obj):
+    print "obj.%s = %s" % (attr, getattr(obj, attr))
+
+def dumpclean(obj):
+    if type(obj) == dict:
+        for k, v in obj.items():
+            if hasattr(v, '__iter__'):
+                print k
+                dumpclean(v)
+            else:
+                print '%s : %s' % (k, v)
+    elif type(obj) == list:
+        for v in obj:
+            if hasattr(v, '__iter__'):
+                dumpclean(v)
+            else:
+                print v
+    else:
+        print obj

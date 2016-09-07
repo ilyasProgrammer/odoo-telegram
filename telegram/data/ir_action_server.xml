@@ -19,7 +19,7 @@
     </record>
     <record id="action_manage_threads" model="ir.actions.server">
         <field name="name">Telegram: Manage threads</field>
-        <field name="model_id" ref="model_telegram_manager"/>
+        <field name="model_id" ref="model_telegram_command"/>
         <field name="condition">True</field>
         <field name="type">ir.actions.server</field>
         <field name="state">code</field>
