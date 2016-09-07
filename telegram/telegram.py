@@ -416,9 +416,11 @@ Check Help Tab for the rest variables.
                 command.send(bot, rendered, tsession)
 
 
-class TelegramManager(object):
+class TelegramManager(models.Model):
+    _name = "telegram.manager"
 
     def __init__(self, threads_bundles_list, OdooTelegramThread):
+        super(TelegramManager, self).__init__(threads_bundles_list, OdooTelegramThread)
         self.threads_bundles_list = threads_bundles_list
         self.OdooTelegramThread = OdooTelegramThread
         # this called by run() in while self.alive cycle
