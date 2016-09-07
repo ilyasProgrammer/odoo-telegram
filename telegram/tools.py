@@ -40,3 +40,39 @@ def _db_list():
         db_names = openerp.service.db.list_dbs(True)
     return db_names
 
+
+def get_num_of_odoo_threads(dbname):
+    n = 1  # its minimum
+    num = get_parameter(dbname, 'telegram.num_odoo_threads')
+    if num:
+        n += int(num)
+    return n
+
+
+def token_is_valid(token):
+    if token and len(token) > 10:
+        return True
+    return False
+
+
+def dump(obj):
+  for attr in dir(obj):
+    print "obj.%s = %s" % (attr, getattr(obj, attr))
+
+
+def dumpclean(obj):
+    if type(obj) == dict:
+        for k, v in obj.items():
+            if hasattr(v, '__iter__'):
+                print k
+                dumpclean(v)
+            else:
+                print '%s : %s' % (k, v)
+    elif type(obj) == list:
+        for v in obj:
+            if hasattr(v, '__iter__'):
+                dumpclean(v)
+            else:
+                print v
+    else:
+        print obj

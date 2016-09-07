@@ -6,8 +6,8 @@
         <field name="value">null</field>
     </record>
 
-    <record model="ir.config_parameter" id="telegram_odoo_threads">
-        <field name="key">telegram.odoo_threads</field>
+    <record model="ir.config_parameter" id="telegram_num_odoo_threads">
+        <field name="key">telegram.num_odoo_threads</field>
         <field name="value">2</field>
     </record>
 

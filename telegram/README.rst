@@ -12,7 +12,7 @@ The module apply monkey patch for PreforkServer in order to run new process Tele
     * To send events the function registry['telegram.bus'].sendone() is used
 
   * OdooTelegramThread - 1 thread - listen for events from odoo_dispatch and delegate work to odoo_thread_pool
-  * odoo_thread_pool - pool of threads to handle odoo events.  Executes registry['telegram.command'].telegram_listener() It has 1 + N1+N2+... threads, where Ni is a value of telegram.odoo_threads ir.config_parameter of some database.
+  * odoo_thread_pool - pool of threads to handle odoo events.  Executes registry['telegram.command'].telegram_listener() It has 1 + N1+N2+... threads, where Ni is a value of telegram.num_odoo_threads ir.config_parameter of some database.
 
   * BotPollingThread - 1 per each database with token - calls bot.polling() function
 
