@@ -23,7 +23,7 @@
         <field name="condition">True</field>
         <field name="type">ir.actions.server</field>
         <field name="state">code</field>
-        <field name="code">self.telegram_proceed_ir_config(cr, uid, context=context)</field>
+        <field name="code">self.proceed_ir_config(cr, uid, context=context)</field>
     </record>
 </data>
 </openerp>

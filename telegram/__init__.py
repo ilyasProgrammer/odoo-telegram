@@ -83,38 +83,6 @@ class WorkerTelegram(Worker):
                 self.threads_bundles_list.append(vals)
         time.sleep(self.interval / 2)
 
-    def manage_threads(self):
-        for bundle in self.threads_bundles_list:
-            bot = bundle['bot']
-            wp = bot.worker_pool
-            new_num_threads = int(tools.get_parameter(bot.dbname, 'telegram.telegram_threads'))
-            diff = new_num_threads - bot.telegram_threads
-            if new_num_threads > bot.telegram_threads:
-                # add new threads
-                wp.workers += [util.WorkerThread(wp.on_exception, wp.tasks) for _ in range(diff)]
-                bot.telegram_threads += diff
-                _logger.info("Telegram workers increased and now its amount = %s" % tools.running_workers_num(wp.workers))
-            elif new_num_threads < bot.telegram_threads:
-                # decrease threads
-                cnt = 0
-                for i in range(len(wp.workers)):
-                    if wp.workers[i]._running:
-                        wp.workers[i].stop()
-                        _logger.info('Telegram worker stop')
-                        cnt += 1
-                        if cnt >= -diff:
-                            break
-                cnt = 0
-                for i in range(len(wp.workers)):
-                    if not wp.workers[i]._running:
-                        wp.workers[i].join()
-                        _logger.info('Telegram worker join')
-                        cnt += 1
-                        if cnt >= -diff:
-                            break
-                bot.telegram_threads += diff
-                _logger.info("Telegram workers decreased and now its amount = %s" % tools.running_workers_num(wp.workers))
-
 
 class OdooTelegramThread(threading.Thread):
     """
@@ -159,7 +127,7 @@ class OdooTelegramThread(threading.Thread):
             db = openerp.sql_db.db_connect(self.dbname)
             registry = tools.get_registry(self.dbname)
             with openerp.api.Environment.manage(), db.cursor() as cr:
-                registry['telegram.command'].telegram_proceed_ir_config(cr, SUPERUSER_ID, True, self.dbname)
+                registry['telegram.command'].proceed_ir_config(cr, SUPERUSER_ID, True, self.dbname)
 
         while True:
             # Exeptions ?

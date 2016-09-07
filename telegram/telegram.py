@@ -123,6 +123,9 @@ Check Help Tab for the rest variables.
         elif bus_message['action'] == 'odoo_threads_changed':
             _logger.info('odoo_threads_changed')
             self.update_odoo_threads(bus_message['dbname'], odoo_thread)
+        elif bus_message['action'] == 'telegram_threads_changed':
+            _logger.info('telegram_threads_changed')
+            self.update_telegram_threads(bus_message['dbname'], odoo_thread)
 
     @api.multi
     def get_response(self, locals_dict=None, tsession=None):
@@ -425,7 +428,7 @@ Check Help Tab for the rest variables.
                 command.send(bot, rendered, tsession)
 
     @api.model
-    def telegram_proceed_ir_config(self, on_boot_launch=False, dbname=False):
+    def proceed_ir_config(self, on_boot_launch=False, dbname=False):
         _logger.debug('telegram_proceed_ir_config')
         message = False
         if on_boot_launch:
@@ -444,6 +447,11 @@ Check Help Tab for the rest variables.
             elif parameter.key == 'telegram.num_odoo_threads':
                 message = {
                     'action': 'odoo_threads_changed',
+                    'dbname': self._cr.dbname,
+                }
+            elif parameter.key == 'telegram.telegram_threads':
+                message = {
+                    'action': 'telegram_threads_changed',
                     'dbname': self._cr.dbname,
                 }
         if message:
@@ -517,6 +525,38 @@ Check Help Tab for the rest variables.
                         break
             odoo_thread.num_odoo_threads += diff
             _logger.info("Odoo workers decreased and now its amount = %s" % teletools.running_workers_num(wp.workers))
+
+    @api.model
+    def update_telegram_threads(self, dbname, odoo_thread):
+        bot = odoo_thread.bot
+        wp = bot.worker_pool
+        new_num_threads = int(teletools.get_parameter(dbname, 'telegram.telegram_threads'))
+        diff = new_num_threads - bot.telegram_threads
+        if new_num_threads > bot.telegram_threads:
+            # add new threads
+            wp.workers += [util.WorkerThread(wp.on_exception, wp.tasks) for _ in range(diff)]
+            bot.telegram_threads += diff
+            _logger.info("Telegram workers increased and now its amount = %s" % teletools.running_workers_num(wp.workers))
+        elif new_num_threads < bot.telegram_threads:
+            # decrease threads
+            cnt = 0
+            for i in range(len(wp.workers)):
+                if wp.workers[i]._running:
+                    wp.workers[i].stop()
+                    _logger.info('Telegram worker stop')
+                    cnt += 1
+                    if cnt >= -diff:
+                        break
+            cnt = 0
+            for i in range(len(wp.workers)):
+                if not wp.workers[i]._running:
+                    wp.workers[i].join()
+                    _logger.info('Telegram worker join')
+                    cnt += 1
+                    if cnt >= -diff:
+                        break
+            bot.telegram_threads += diff
+            _logger.info("Telegram workers decreased and now its amount = %s" % teletools.running_workers_num(wp.workers))
 
 
 class TelegramSession(models.Model):
