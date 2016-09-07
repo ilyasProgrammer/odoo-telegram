@@ -17,7 +17,7 @@ The module apply monkey patch for PreforkServer in order to run new process Tele
   * BotPollingThread - 1 per each database with token - calls bot.polling() function
 
     * telebot's polling_thread - 1 thread to listen for events from Telegram and delegate work to  telebot's worker_pool
-    * telebot's worker_pool -  pool of thread to handle telegram events. Executes registry['telegram.command'].telegram_listener(). It has threads number equal to telegram.telegram_threads ir.config_parameter.
+    * telebot's worker_pool -  pool of thread to handle telegram events. Executes registry['telegram.command'].telegram_listener(). It has threads number equal to telegram.num_telegram_threads ir.config_parameter.
 
 Further information
 -------------------

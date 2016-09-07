@@ -449,7 +449,7 @@ Check Help Tab for the rest variables.
                     'action': 'odoo_threads_changed',
                     'dbname': self._cr.dbname,
                 }
-            elif parameter.key == 'telegram.telegram_threads':
+            elif parameter.key == 'telegram.num_telegram_threads':
                 message = {
                     'action': 'telegram_threads_changed',
                     'dbname': self._cr.dbname,
@@ -472,9 +472,9 @@ Check Help Tab for the rest variables.
             res = self.get_bundle_action(dbname, odoo_thread)
             if res == 'complete':
                 _logger.info("Database %s just obtained new token or on-boot launch.", dbname)
-                num_telegram_threads = int(self.env['ir.config_parameter'].get_param('telegram.telegram_threads'))
+                num_telegram_threads = int(self.env['ir.config_parameter'].get_param('telegram.num_telegram_threads'))
                 bot = TeleBotMod(token, threaded=True, num_threads=num_telegram_threads)
-                bot.telegram_threads = num_telegram_threads
+                bot.num_telegram_threads = num_telegram_threads
                 bot.set_update_listener(listener)
                 bot.dbname = dbname  # needs in telegram_listener()
                 bot_thread = BotPollingThread(bot)
@@ -530,14 +530,14 @@ Check Help Tab for the rest variables.
     def update_telegram_threads(self, dbname, odoo_thread):
         bot = odoo_thread.bot
         wp = bot.worker_pool
-        new_num_threads = int(teletools.get_parameter(dbname, 'telegram.telegram_threads'))
-        diff = new_num_threads - bot.telegram_threads
-        if new_num_threads > bot.telegram_threads:
+        new_num_threads = int(teletools.get_parameter(dbname, 'telegram.num_telegram_threads'))
+        diff = new_num_threads - bot.num_telegram_threads
+        if new_num_threads > bot.num_telegram_threads:
             # add new threads
             wp.workers += [util.WorkerThread(wp.on_exception, wp.tasks) for _ in range(diff)]
-            bot.telegram_threads += diff
+            bot.num_telegram_threads += diff
             _logger.info("Telegram workers increased and now its amount = %s" % teletools.running_workers_num(wp.workers))
-        elif new_num_threads < bot.telegram_threads:
+        elif new_num_threads < bot.num_telegram_threads:
             # decrease threads
             cnt = 0
             for i in range(len(wp.workers)):
@@ -555,7 +555,7 @@ Check Help Tab for the rest variables.
                     cnt += 1
                     if cnt >= -diff:
                         break
-            bot.telegram_threads += diff
+            bot.num_telegram_threads += diff
             _logger.info("Telegram workers decreased and now its amount = %s" % teletools.running_workers_num(wp.workers))
 
 
@@ -631,7 +631,7 @@ class CommandCache(object):
 class BotPollingThread(threading.Thread):
     """
         This is father-thread for telegram bot execution-threads.
-        When bot polling is started it at once spawns several child threads (num=telegram.telegram_threads).
+        When bot polling is started it at once spawns several child threads (num=telegram.num_telegram_threads).
         Then in __threaded_polling() it listens for events from telegram server.
         If it catches message from server it gives to manage this message to one of executors that calls telegram_listener().
         Listener do what command requires by it self or may send according command in telegram bus.
