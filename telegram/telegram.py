@@ -9,7 +9,7 @@ from telebot.apihelper import ApiException
 from lxml import etree
 from telebot import TeleBot
 import telebot.util as util
-
+from . import tools as teletools
 from openerp import tools
 from openerp import api, models, fields
 import openerp.addons.auth_signup.res_users as res_users
@@ -21,12 +21,6 @@ from openerp import SUPERUSER_ID
 
 _logger = logging.getLogger('# ' + __name__)
 _logger.setLevel(logging.DEBUG)
-
-
-def get_registry(db_name):
-    openerp.modules.registry.RegistryManager.check_registry_signaling(db_name)
-    registry = openerp.registry(db_name)
-    return registry
 
 
 class TelegramCommand(models.Model):
@@ -427,32 +421,38 @@ Check Help Tab for the rest variables.
                 command.send(bot, rendered, tsession)
 
     @api.model
-    def telegram_proceed_ir_config(self):
-        _logger.info('telegram_proceed_ir_config')
-        active_id = self._context['active_id']
-        parameter = self.env['ir.config_parameter'].browse(active_id)
-        if parameter.key == 'telegram.token':
-            message = {'action': 'token_changed',
-                       'dbname': self._cr.dbname,
-                       }
-            self.env['telegram.bus'].sendone('telegram_channel', message)
-            # self.build_new_proc_bundle(self._cr.dbname)
+    def telegram_proceed_ir_config(self, on_boot_launch=False, dbname=False):
+        _logger.debug('telegram_proceed_ir_config')
+        if on_boot_launch:
+            message = {
+                'action': 'token_changed',
+                'dbname': dbname,
+            }
+        else:
+            active_id = self._context['active_id']
+            parameter = self.env['ir.config_parameter'].browse(active_id)
+            if parameter.key == 'telegram.token':
+                message = {
+                    'action': 'token_changed',
+                    'dbname': self._cr.dbname,
+                }
+        self.env['telegram.bus'].sendone('telegram_channel', message)
 
     def build_new_proc_bundle(self, dbname, threads_bundles_list, bot):
         def listener(messages):
             db = openerp.sql_db.db_connect(dbname)
-            registry = get_registry(dbname)
+            registry = teletools.get_registry(dbname)
             with openerp.api.Environment.manage(), db.cursor() as cr:
                 try:
                     registry['telegram.command'].telegram_listener(cr, SUPERUSER_ID, messages, bot)
                 except:
-                    _logger.error('Error while proccessing Telegram messages: %s' % messages, exc_info=True)
+                    _logger.error('Error while processing Telegram messages: %s' % messages, exc_info=True)
 
         token = self.env['ir.config_parameter'].get_param('telegram.token')
         if token and len(token) > 10:
             res = self.get_bundle_action(dbname, threads_bundles_list)
             if res['action'] == 'complete':
-                _logger.info("Database %s just obtained new token.", dbname)
+                _logger.info("Database %s just obtained new token or on-boot launch.", dbname)
                 num_telegram_threads = int(self.env['ir.config_parameter'].get_param('telegram.telegram_threads'))
                 bot = TeleBotMod(token, threaded=True, num_threads=num_telegram_threads)
                 bot.telegram_threads = num_telegram_threads
@@ -463,13 +463,16 @@ Check Help Tab for the rest variables.
                 res['bundle']['token'] = token
                 res['bundle']['bot'] = bot
                 res['bundle']['bot_thread'] = bot_thread
-                dumpclean(threads_bundles_list)
 
-    def get_bundle_action(self, dbname, threads_bundles_list):
+    @staticmethod
+    def get_bundle_action(dbname, threads_bundles_list):
+        # update - means token was updated
+        # complete - means TelegramDispatch and OdooTelegramThread already created and we just need complete threads_bundles_list with bot and BotPollingThread
+        # new - means there is no even TelegramDispatch and OdooTelegramThread
         for bundle in threads_bundles_list:
             if bundle['dbname'] == dbname:
                 if bundle['bot']:
-                    # destroy old threads and create new
+                    # TODO destroy old threads and create new
                     return {'action': 'update', 'bundle': bundle}
                 else:
                     return {'action': 'complete', 'bundle': bundle}
