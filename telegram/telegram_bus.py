@@ -11,7 +11,7 @@ import openerp
 from openerp import api, fields, models
 from openerp.tools.misc import DEFAULT_SERVER_DATETIME_FORMAT
 
-_logger = logging.getLogger(__name__)
+_logger = logging.getLogger('# ' + __name__)
 
 # longpolling timeout connection
 TIMEOUT = 50
@@ -174,6 +174,7 @@ class TelegramDispatch(object):
                         event.set()
 
     def run(self):
+        _logger.info("TelegramDispatch started")
         while True:
             try:
                 self.loop()

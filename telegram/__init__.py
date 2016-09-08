@@ -73,7 +73,6 @@ class WorkerTelegram(Worker):
                 # _logger.info("telegram.bus in %s" % db_name)
                 if not tools.need_new_bundle(self.threads_bundles_list, dbname):
                     continue
-                _logger.info("telegram.bus Need to create new bundle for %s" % dbname)
                 self.odoo_dispatch = telegram_bus.TelegramDispatch().start()
                 self.odoo_thread = OdooTelegramThread(self.interval, self.odoo_dispatch, dbname, False)
                 self.odoo_thread.start()
@@ -131,8 +130,6 @@ class OdooTelegramThread(threading.Thread):
 
         while True:
             # Exeptions ?
-            if not token:
-                continue
             # ask TelegramDispatch about some messages.
             msg_list = self.dispatch.poll(dbname=self.dbname, channels=['telegram_channel'], last=self.last)
             for msg in msg_list:
