@@ -3,19 +3,16 @@
 import openerp
 import openerp.tools.config as config
 from openerp import SUPERUSER_ID
+import logging
+
+_logger = logging.getLogger('# ' + __name__)
+_logger.setLevel(logging.DEBUG)
 
 
 def get_registry(db_name):
     openerp.modules.registry.RegistryManager.check_registry_signaling(db_name)
     registry = openerp.registry(db_name)
     return registry
-
-
-def need_new_bundle(threads_bundles_list, dbname):
-    for bundle in threads_bundles_list:
-        if bundle['dbname'] == dbname:
-            return False
-    return True
 
 
 def get_parameter(dbname, key):
@@ -33,7 +30,7 @@ def running_workers_num(workers):
     return res
 
 
-def _db_list():
+def db_list():
     if config['db_name']:
         db_names = config['db_name'].split(',')
     else:
@@ -51,7 +48,9 @@ def get_num_of_odoo_threads(dbname):
 
 def token_is_valid(token):
     if token and len(token) > 10:
+        _logger.debug('Valid token')
         return True
+    _logger.debug('Invalid token')
     return False
 
 
