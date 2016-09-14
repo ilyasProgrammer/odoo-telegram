@@ -188,39 +188,42 @@ class OdooTelegramThread(threading.Thread):
             return 'complete'
         return 'new'
 
-    @api.model
-    def update_odoo_threads(self, dbname, odoo_thread):
+    @staticmethod
+    def update_odoo_threads(dbname, odoo_thread):
+        _logger.debug('update_odoo_threads')
         new_num_threads = teletools.get_num_of_odoo_threads(dbname)
         diff = new_num_threads - odoo_thread.num_odoo_threads
+        _logger.debug('diff %s' % diff)
         wp = odoo_thread.odoo_thread_pool
-        if new_num_threads > odoo_thread.num_odoo_threads:
-                # add new threads
+        if diff > 0:
+            # add new threads
             wp.workers += [util.WorkerThread(wp.on_exception, wp.tasks) for _ in range(diff)]
             odoo_thread.num_odoo_threads += diff
             _logger.info("Odoo workers increased and now its amount = %s" % teletools.running_workers_num(wp.workers))
-        elif new_num_threads < odoo_thread.num_odoo_threads:
+        elif diff < 0:
             # decrease threads
+            _logger.debug('range(len(wp.workers)) %s' % range(len(wp.workers)))
             cnt = 0
             for i in range(len(wp.workers)):
                 if wp.workers[i]._running:
                     wp.workers[i].stop()
-                    _logger.info('Odoo worker stop')
+                    _logger.info('Odoo worker [id=%s] stopped' % wp.workers[i].ident)
                     cnt += 1
                     if cnt >= -diff:
                         break
             cnt = 0
             for i in range(len(wp.workers)):
                 if not wp.workers[i]._running:
+                    _logger.info('Odoo worker [id=%s] joined' % wp.workers[i].ident)
                     wp.workers[i].join()
-                    _logger.info('Odoo worker join')
                     cnt += 1
                     if cnt >= -diff:
                         break
             odoo_thread.num_odoo_threads += diff
             _logger.info("Odoo workers decreased and now its amount = %s" % teletools.running_workers_num(wp.workers))
 
-    @api.model
-    def update_telegram_threads(self, dbname, odoo_thread):
+    @staticmethod
+    def update_telegram_threads(dbname, odoo_thread):
         bot = odoo_thread.bot
         wp = bot.worker_pool
         new_num_threads = int(teletools.get_parameter(dbname, 'telegram.num_telegram_threads'))

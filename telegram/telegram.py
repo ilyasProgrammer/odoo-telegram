@@ -421,7 +421,7 @@ Check Help Tab for the rest variables.
     def proceed_ir_config(self, on_boot_launch=False, dbname=False):
         # invoked by ir.actions.server
         _logger.debug('telegram_proceed_ir_config')
-        message = False
+        message = {}
         if on_boot_launch:
             message = {
                 'action': 'token_changed',
@@ -430,21 +430,14 @@ Check Help Tab for the rest variables.
         else:
             active_id = self._context['active_id']
             parameter = self.env['ir.config_parameter'].browse(active_id)
+            _logger.debug('parameter = %s' % parameter)
             if parameter.key == 'telegram.token':
-                message = {
-                    'action': 'token_changed',
-                    'dbname': self._cr.dbname,
-                }
+                message['action'] = 'token_changed'
             elif parameter.key == 'telegram.num_odoo_threads':
-                message = {
-                    'action': 'odoo_threads_changed',
-                    'dbname': self._cr.dbname,
-                }
+                message['action'] = 'odoo_threads_changed'
             elif parameter.key == 'telegram.num_telegram_threads':
-                message = {
-                    'action': 'telegram_threads_changed',
-                    'dbname': self._cr.dbname,
-                }
+                message['action'] = 'telegram_threads_changed'
+            message['dbname'] = self._cr.dbname
         if message:
             self.env['telegram.bus'].sendone('telegram_channel', message)
 
