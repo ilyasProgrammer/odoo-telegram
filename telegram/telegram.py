@@ -416,8 +416,12 @@ Check Help Tab for the rest variables.
                     rendered = command.render_notification(locals_dict, tsession)
                 command.send(bot, rendered, tsession)
 
+
+class IrConfigParameter(models.Model):
+    _inherit = 'ir.config_parameter'
+
     @api.model
-    def proceed_ir_config(self, on_boot_launch=False, dbname=False):
+    def proceed_telegram_configs(self, on_boot_launch=False, dbname=False):
         # invoked by ir.actions.server
         _logger.debug('telegram_proceed_ir_config')
         message = {}
