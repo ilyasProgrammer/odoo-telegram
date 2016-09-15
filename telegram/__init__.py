@@ -178,7 +178,6 @@ class OdooTelegramThread(threading.Thread):
         # complete - means TelegramDispatch and OdooTelegramThread already created and we just need complete threads_bundles with bot and BotPollingThread
         # new - means there is no even TelegramDispatch and OdooTelegramThread
         if odoo_thread.bot:
-            # TODO destroy old threads and create new
             return 'update'
         elif dbname:
             return 'complete'
