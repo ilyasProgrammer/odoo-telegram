@@ -1,22 +1,17 @@
 # -*- coding: utf-8 -*-
 
-import threading
 import datetime
 import dateutil
 import time
 import logging
 from telebot.apihelper import ApiException
 from lxml import etree
-from telebot import TeleBot
-import telebot.util as util
 from openerp import tools
 from openerp import api, models, fields
 import openerp.addons.auth_signup.res_users as res_users
 from openerp.tools.safe_eval import safe_eval
 from openerp.tools.translate import _
 from openerp.addons.base.ir.ir_qweb import QWebContext
-import openerp
-from openerp import SUPERUSER_ID
 
 _logger = logging.getLogger(__name__)
 

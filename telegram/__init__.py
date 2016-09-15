@@ -5,27 +5,16 @@ from . import telegram_bus
 from . import controllers
 from . import tools
 
-from openerp import api, models, fields
 from . import tools as teletools
-import random
-import datetime
-import dateutil
 import time
-import sys
 import openerp
 from openerp.service.server import Worker
 from openerp.service.server import PreforkServer
-from openerp.tools.safe_eval import safe_eval
-from openerp.tools.translate import _
-import telebot
 from telebot import TeleBot
-import telebot.util as util
-import openerp.tools.config as config
 from openerp import SUPERUSER_ID
-from openerp.exceptions import ValidationError
 import threading
 import logging
-from telebot import apihelper, types, util
+from telebot import util
 
 _logger = logging.getLogger(__name__)
 
@@ -79,6 +68,27 @@ class WorkerTelegram(Worker):
                 self.threads_bundles[dbname] = {'odoo_thread': self.odoo_thread,
                                                 'odoo_dispatch': self.odoo_dispatch}
         time.sleep(self.interval / 2)
+
+
+class BotPollingThread(threading.Thread):
+    """
+        This is father-thread for telegram bot execution-threads.
+        When bot polling is started it at once spawns several child threads (num=telegram.num_telegram_threads).
+        Then in __threaded_polling() it listens for events from telegram server.
+        If it catches message from server it gives to manage this message to one of executors that calls telegram_listener().
+        Listener do what command requires by it self or may send according command in telegram bus.
+        For every database with token one bot and one bot_polling is created.
+    """
+
+    def __init__(self, bot):
+        threading.Thread.__init__(self, name='BotPollingThread')
+        self.daemon = True
+        self.interval = 10
+        self.bot = bot
+
+    def run(self):
+        _logger.info("BotPollingThread started.")
+        self.bot.polling()
 
 
 class OdooTelegramThread(threading.Thread):
@@ -270,24 +280,3 @@ class CommandCache(object):
         if command.id not in self._vals:
             return False
         return self._vals[command.id].get(user_id)
-
-
-class BotPollingThread(threading.Thread):
-    """
-        This is father-thread for telegram bot execution-threads.
-        When bot polling is started it at once spawns several child threads (num=telegram.num_telegram_threads).
-        Then in __threaded_polling() it listens for events from telegram server.
-        If it catches message from server it gives to manage this message to one of executors that calls telegram_listener().
-        Listener do what command requires by it self or may send according command in telegram bus.
-        For every database with token one bot and one bot_polling is created.
-    """
-
-    def __init__(self, bot):
-        threading.Thread.__init__(self, name='BotPollingThread')
-        self.daemon = True
-        self.interval = 10
-        self.bot = bot
-
-    def run(self):
-        _logger.info("BotPollingThread started.")
-        self.bot.polling()
