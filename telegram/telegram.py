@@ -416,26 +416,20 @@ class IrConfigParameter(models.Model):
     _inherit = 'ir.config_parameter'
 
     @api.model
-    def proceed_telegram_configs(self, on_boot_launch=False, dbname=False):
+    def proceed_telegram_configs(self, dbname=False):
         # invoked by ir.actions.server
         _logger.debug('telegram_proceed_ir_config')
         message = {}
-        if on_boot_launch:
-            message = {
-                'action': 'token_changed',
-                'dbname': dbname,
-            }
-        else:
-            active_id = self._context['active_id']
-            parameter = self.env['ir.config_parameter'].browse(active_id)
-            _logger.debug('parameter = %s' % parameter)
-            if parameter.key == 'telegram.token':
-                message['action'] = 'token_changed'
-            elif parameter.key == 'telegram.num_odoo_threads':
-                message['action'] = 'odoo_threads_changed'
-            elif parameter.key == 'telegram.num_telegram_threads':
-                message['action'] = 'telegram_threads_changed'
-            message['dbname'] = self._cr.dbname
+        active_id = self._context['active_id']
+        parameter = self.env['ir.config_parameter'].browse(active_id)
+        _logger.debug('parameter = %s' % parameter)
+        if parameter.key == 'telegram.token':
+            message['action'] = 'token_changed'
+        elif parameter.key == 'telegram.num_odoo_threads':
+            message['action'] = 'odoo_threads_changed'
+        elif parameter.key == 'telegram.num_telegram_threads':
+            message['action'] = 'telegram_threads_changed'
+        message['dbname'] = self._cr.dbname
         if message:
             self.env['telegram.bus'].sendone('telegram_channel', message)
 
