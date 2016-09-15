@@ -18,8 +18,7 @@ from openerp.addons.base.ir.ir_qweb import QWebContext
 import openerp
 from openerp import SUPERUSER_ID
 
-_logger = logging.getLogger('# ' + __name__)
-_logger.setLevel(logging.DEBUG)
+_logger = logging.getLogger(__name__)
 
 
 class TelegramCommand(models.Model):

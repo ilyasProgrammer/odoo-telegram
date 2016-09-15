@@ -27,8 +27,7 @@ import threading
 import logging
 from telebot import apihelper, types, util
 
-_logger = logging.getLogger('# ' + __name__)
-_logger.setLevel(logging.DEBUG)
+_logger = logging.getLogger(__name__)
 
 
 def telegram_worker():
@@ -133,10 +132,7 @@ class OdooTelegramThread(threading.Thread):
         if not self.bot and tools.token_is_valid(token):
             # need to launch bot manually on database start
             _logger.debug('on boot telegram start')
-            db = openerp.sql_db.db_connect(self.dbname)
-            registry = tools.get_registry(self.dbname)
-            with openerp.api.Environment.manage(), db.cursor() as cr:
-                registry['telegram.command'].proceed_ir_config(cr, SUPERUSER_ID, True, self.dbname)
+            self.build_new_proc_bundle(self.dbname, self)
 
         while True:
             # Exeptions ?
@@ -169,7 +165,7 @@ class OdooTelegramThread(threading.Thread):
                 bot = TeleBotMod(token, threaded=True, num_threads=num_telegram_threads)
                 bot.num_telegram_threads = num_telegram_threads
                 bot.set_update_listener(listener)
-                bot.dbname = dbname  # needs in telegram_listener()
+                bot.dbname = dbname
                 bot_thread = BotPollingThread(bot)
                 bot_thread.start()
                 odoo_thread.token = token
@@ -190,69 +186,43 @@ class OdooTelegramThread(threading.Thread):
 
     @staticmethod
     def update_odoo_threads(dbname, odoo_thread):
-        _logger.debug('update_odoo_threads')
         new_num_threads = teletools.get_num_of_odoo_threads(dbname)
         diff = new_num_threads - odoo_thread.num_odoo_threads
-        _logger.debug('diff %s' % diff)
-        wp = odoo_thread.odoo_thread_pool
-        if diff > 0:
-            # add new threads
-            wp.workers += [util.WorkerThread(wp.on_exception, wp.tasks) for _ in range(diff)]
-            odoo_thread.num_odoo_threads += diff
-            _logger.info("Odoo workers increased and now its amount = %s" % teletools.running_workers_num(wp.workers))
-        elif diff < 0:
-            # decrease threads
-            _logger.debug('range(len(wp.workers)) %s' % range(len(wp.workers)))
-            cnt = 0
-            for i in range(len(wp.workers)):
-                if wp.workers[i]._running:
-                    wp.workers[i].stop()
-                    _logger.info('Odoo worker [id=%s] stopped' % wp.workers[i].ident)
-                    cnt += 1
-                    if cnt >= -diff:
-                        break
-            cnt = 0
-            for i in range(len(wp.workers)):
-                if not wp.workers[i]._running:
-                    _logger.info('Odoo worker [id=%s] joined' % wp.workers[i].ident)
-                    wp.workers[i].join()
-                    cnt += 1
-                    if cnt >= -diff:
-                        break
-            odoo_thread.num_odoo_threads += diff
-            _logger.info("Odoo workers decreased and now its amount = %s" % teletools.running_workers_num(wp.workers))
+        odoo_thread.num_odoo_threads += diff
+        OdooTelegramThread._update_threads(diff, 'Odoo', odoo_thread.odoo_thread_pool)
 
     @staticmethod
     def update_telegram_threads(dbname, odoo_thread):
-        bot = odoo_thread.bot
-        wp = bot.worker_pool
         new_num_threads = int(teletools.get_parameter(dbname, 'telegram.num_telegram_threads'))
-        diff = new_num_threads - bot.num_telegram_threads
-        if new_num_threads > bot.num_telegram_threads:
+        diff = new_num_threads - odoo_thread.bot.num_telegram_threads
+        odoo_thread.bot.num_telegram_threads += diff
+        OdooTelegramThread._update_threads(diff, 'Telegram', odoo_thread.bot.worker_pool)
+
+    @staticmethod
+    def _update_threads(diff, proc_name, wp):
+        if diff > 0:
             # add new threads
             wp.workers += [util.WorkerThread(wp.on_exception, wp.tasks) for _ in range(diff)]
-            bot.num_telegram_threads += diff
-            _logger.info("Telegram workers increased and now its amount = %s" % teletools.running_workers_num(wp.workers))
-        elif new_num_threads < bot.num_telegram_threads:
+            _logger.info("%s workers increased and now its amount = %s" % (proc_name, teletools.running_workers_num(wp.workers)))
+        elif diff < 0:
             # decrease threads
             cnt = 0
             for i in range(len(wp.workers)):
                 if wp.workers[i]._running:
                     wp.workers[i].stop()
-                    _logger.info('Telegram worker stop')
+                    _logger.info('%s worker [id=%s] stopped' % (proc_name, wp.workers[i].ident))
                     cnt += 1
                     if cnt >= -diff:
                         break
             cnt = 0
             for i in range(len(wp.workers)):
                 if not wp.workers[i]._running:
+                    _logger.info('%s worker [id=%s] joined' % (proc_name, wp.workers[i].ident))
                     wp.workers[i].join()
-                    _logger.info('Telegram worker join')
                     cnt += 1
                     if cnt >= -diff:
                         break
-            bot.num_telegram_threads += diff
-            _logger.info("Telegram workers decreased and now its amount = %s" % teletools.running_workers_num(wp.workers))
+            _logger.info("%s workers decreased and now its amount = %s" % (proc_name, teletools.running_workers_num(wp.workers)))
 
 
 class TeleBotMod(TeleBot, object):

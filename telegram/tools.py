@@ -5,8 +5,7 @@ import openerp.tools.config as config
 from openerp import SUPERUSER_ID
 import logging
 
-_logger = logging.getLogger('# ' + __name__)
-_logger.setLevel(logging.DEBUG)
+_logger = logging.getLogger(__name__)
 
 
 def get_registry(db_name):
