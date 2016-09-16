@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<openerp>
+<data>
+    <record model="telegram.command" id="shop_command">
+        <field name="name">/shop</field>
+        <field name="description">Shows available goods</field>
+        <field name="sequence" eval="100"/>
+        <field name="type">cacheable</field>
+        <field name="universal">True</field>
+        <field name="group_ids" eval="[(4, ref('base.group_user'))]" />
+        <field name="response_code">получаем категории товаров</field>
+        <field name="response_template" type="xml">высылаем кнопки с названиями категорий</field>
+    </record>
+</data>
+</openerp>
