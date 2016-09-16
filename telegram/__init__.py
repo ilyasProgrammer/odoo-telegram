@@ -118,6 +118,8 @@ class OdooTelegramThread(threading.Thread):
 
         def listener(message, dbname, odoo_thread, bot):
             bus_message = message['message']
+            if not bus_message.get('action', False):
+                return
             if bus_message['action'] == 'token_changed':
                 _logger.debug('token_changed')
                 self.build_new_proc_bundle(dbname, odoo_thread)
