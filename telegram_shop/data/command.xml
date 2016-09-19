@@ -5,11 +5,18 @@
         <field name="name">/shop</field>
         <field name="description">Shows available goods</field>
         <field name="sequence" eval="100"/>
-        <field name="type">cacheable</field>
+        <field name="type">normal</field>
         <field name="universal">True</field>
         <field name="group_ids" eval="[(4, ref('base.group_user'))]" />
-        <field name="response_code">получаем категории товаров</field>
-        <field name="response_template" type="xml">высылаем кнопки с названиями категорий</field>
+        <field name="response_code">data = {}
+data['product_categories'] = env['product.category'].search([])
+keyboard = types.InlineKeyboardMarkup()
+for r in data['product_categories']:
+    cat_name = env['product.category'].browse(r.id).name
+    callback_button = types.InlineKeyboardButton(text=cat_name, callback_data=cat_name)
+    keyboard.add(callback_button)
+data['reply_markup'] = keyboard</field>
+        <field name="response_template" type="xml"><t>sssss.</t></field>
     </record>
 </data>
 </openerp>

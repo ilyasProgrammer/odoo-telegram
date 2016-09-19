@@ -5,6 +5,7 @@ import dateutil
 import time
 import logging
 from telebot.apihelper import ApiException
+from telebot import types
 from lxml import etree
 from openerp import tools
 from openerp import api, models, fields
@@ -93,10 +94,10 @@ Check Help Tab for the rest variables.
                     _logger.debug('No cache found for command %s' % tele_message.text)
 
             if not response:
-                response = command.get_response(locals_dict, tsession)
+                response, locals_dict = command.get_response(locals_dict, tsession)
                 bot.cache.set_value(command, response, tsession)
-
-            self.send(bot, response, tsession)
+                _logger.debug('locals_dict %s' % locals_dict)
+            self.send(bot, response, tsession, locals_dict)
             command.eval_post_response(tsession)
 
     # bus listener
@@ -115,7 +116,7 @@ Check Help Tab for the rest variables.
     def get_response(self, locals_dict=None, tsession=None):
         self.ensure_one()
         locals_dict = self._eval(self.response_code, locals_dict=locals_dict, tsession=tsession)
-        return self._render(self.response_template, locals_dict, tsession)
+        return self._render(self.response_template, locals_dict, tsession), locals_dict
 
     @api.multi
     def eval_post_response(self, tsession):
@@ -141,6 +142,7 @@ Check Help Tab for the rest variables.
             'time': time,
             '_logger': _logger,
             'tools': tools,
+            'types': types,
         }
 
     @api.multi
@@ -178,9 +180,9 @@ Check Help Tab for the rest variables.
                 'html': html}
 
     @api.model
-    def send(self, bot, rendered, tsession):
+    def send(self, bot, rendered, tsession, locals_dict):
         try:
-            self._send(bot, rendered, tsession)
+            self._send(bot, rendered, tsession, locals_dict)
             return True
         except ApiException:
             # TODO remove tsession in case of following error:
@@ -189,10 +191,13 @@ Check Help Tab for the rest variables.
             return False
 
     @api.model
-    def _send(self, bot, rendered, tsession):
+    def _send(self, bot, rendered, tsession, locals_dict):
+        _logger.debug('locals_dict %s' % locals_dict)
+        reply_markup = locals_dict.get('data', None).get('reply_markup', None)
+        _logger.debug('reply_markup %s' % reply_markup)
         if rendered.get('html'):
             _logger.debug('Send:\n%s', rendered.get('html'))
-            bot.send_message(tsession.chat_ID, rendered.get('html'), parse_mode='HTML')
+            bot.send_message(tsession.chat_ID, rendered.get('html'), parse_mode='HTML', reply_markup=reply_markup)
         if rendered.get('photos'):
             _logger.debug('send photos %s' % len(rendered.get('photos')))
             for photo in rendered.get('photos'):
@@ -409,7 +414,7 @@ Check Help Tab for the rest variables.
             for tsession in notify_sessions:
                 if not command.universal:
                     rendered = command.render_notification(locals_dict, tsession)
-                command.send(bot, rendered, tsession)
+                command.send(bot, rendered, tsession, locals_dict)
 
 
 class IrConfigParameter(models.Model):
