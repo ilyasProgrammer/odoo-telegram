@@ -25,18 +25,17 @@ _logger.debug("callback_data  : %s" % callback_data)
 if 'menuin' in callback_data:
     element_id = callback_data.split('_')[2]
     _logger.debug("element_id: %s" % element_id)
-    action = 'menuin'
+    data['action'] = 'menuin'
     res = env['product.category'].search([('parent_id','=',int(element_id))])
     if not res:
         res = env['product.product'].search([('categ_id','=',int(element_id))])
-        action = 'itemin'
+        data['action'] = 'itemin'
     _logger.debug("res: %s" % res)
     keyboard = types.InlineKeyboardMarkup()
     for r in res:
         callback_button = types.InlineKeyboardButton(text=r.name, callback_data='shop_'+action+'_'+str(r.id))
         keyboard.add(callback_button)
     data['reply_markup'] = keyboard
-    data['action'] = action
         </field>
         <field name="response_template" type="xml">
             <t>
