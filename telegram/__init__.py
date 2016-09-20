@@ -210,8 +210,6 @@ class OdooTelegramThread(threading.Thread):
                 odoo_thread.bot = bot
                 odoo_thread.bot_thread = bot_thread
 
-
-
     @staticmethod
     def get_bundle_action(dbname, odoo_thread):
         # update - means token was updated
