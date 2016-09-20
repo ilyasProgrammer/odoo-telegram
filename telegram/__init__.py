@@ -194,9 +194,9 @@ class OdooTelegramThread(threading.Thread):
                                 _logger.debug("callback_inline command: %s" % command)
                                 tsession = registry['telegram.session'].get_session(cr, SUPERUSER_ID, self.message.chat.id)
                                 _logger.debug("callback_inline tsession: %s" % tsession)
-                                response, locals_dict = command.get_callback({'callback_data': self.data}, tsession)
+                                response = command.get_callback({'callback_data': self.data}, tsession)
                                 bot.cache.set_value(command, response, tsession)
-                                registry['telegram.command'].send(cr, SUPERUSER_ID, bot, response, tsession, locals_dict)
+                                registry['telegram.command'].send(cr, SUPERUSER_ID, bot, response, tsession)
 
                     # Если сообщение из инлайн-режима
                     elif self.inline_message_id:
