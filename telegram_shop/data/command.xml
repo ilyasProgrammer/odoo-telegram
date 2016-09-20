@@ -13,10 +13,29 @@ data['product_categories'] = env['product.category'].search([])
 keyboard = types.InlineKeyboardMarkup()
 for r in data['product_categories']:
     cat_name = env['product.category'].browse(r.id).name
-    callback_button = types.InlineKeyboardButton(text=cat_name, callback_data=cat_name)
+    callback_button = types.InlineKeyboardButton(text=cat_name, callback_data='shop_menuin_'+str(r.id))
     keyboard.add(callback_button)
 data['reply_markup'] = keyboard</field>
-        <field name="response_template" type="xml"><t>sssss.</t></field>
+        <field name="callback_query_handler">#
+# callback_data = {'action': menu_in/menu_out/item_in/item_add/item_remove/checkout/cart_in/cart_out
+#                  'arg': some_cat_id/some_item_id}
+_logger.debug("callback_data  : %s" % callback_data)
+if 'menuin' in callback_data:
+    element_id = callback_data.split('_')[2]
+    _logger.debug("element_id: %s" % element_id)
+    action = 'menuin'
+    res = env['product.category'].search([('parent_id','=',int(element_id))])
+    if not res:
+        res = env['product.product'].search([('categ_id','=',int(element_id))])
+        action = 'itemin'
+    _logger.debug("res: %s" % res)
+    keyboard = types.InlineKeyboardMarkup()
+    for r in res:
+        callback_button = types.InlineKeyboardButton(text=r.name, callback_data='shop_'+action+'_'+str(r.id))
+        keyboard.add(callback_button)
+    data['reply_markup'] = keyboard
+        </field>
+        <field name="response_template" type="xml"><t>Press one:</t></field>
     </record>
 </data>
 </openerp>

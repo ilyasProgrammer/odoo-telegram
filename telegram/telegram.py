@@ -5,7 +5,7 @@ import dateutil
 import time
 import logging
 from telebot.apihelper import ApiException
-from telebot import types
+from telebot import types, TeleBot
 from lxml import etree
 from openerp import tools
 from openerp import api, models, fields
@@ -49,6 +49,7 @@ Check Help Tab for the rest variables.
 
     ''')
     notification_template = fields.Text(help='Template for the message, that user will receive when event happens')
+    callback_query_handler = fields.Text(help='Method to process buttons callbacks')
     group_ids = fields.Many2many('res.groups', string="Access Groups", help='Who can use this command. Set empty list for public commands (e.g. /login)', default=lambda self: [self.env.ref('base.group_user').id])
     model_ids = fields.Many2many('ir.model', 'command_to_model_rel', 'command_id', 'model_id', string="Related models", help='Is used by Server Action to find commands to proceed')
     user_ids = fields.Many2many('res.users', 'command_to_user_rel', 'telegram_command_id', 'user_id', string='Subscribed users')
@@ -94,10 +95,9 @@ Check Help Tab for the rest variables.
                     _logger.debug('No cache found for command %s' % tele_message.text)
 
             if not response:
-                response, locals_dict = command.get_response(locals_dict, tsession)
+                response = command.get_response(locals_dict, tsession)
                 bot.cache.set_value(command, response, tsession)
-                _logger.debug('locals_dict %s' % locals_dict)
-            self.send(bot, response, tsession, locals_dict)
+            self.send(bot, response, tsession)
             command.eval_post_response(tsession)
 
     # bus listener
@@ -116,7 +116,7 @@ Check Help Tab for the rest variables.
     def get_response(self, locals_dict=None, tsession=None):
         self.ensure_one()
         locals_dict = self._eval(self.response_code, locals_dict=locals_dict, tsession=tsession)
-        return self._render(self.response_template, locals_dict, tsession), locals_dict
+        return self._render(self.response_template, locals_dict, tsession)
 
     @api.multi
     def eval_post_response(self, tsession):
@@ -147,6 +147,7 @@ Check Help Tab for the rest variables.
 
     @api.multi
     def _eval(self, code, locals_dict=None, tsession=None):
+        _logger.debug("_eval locals_dict: %s" % locals_dict)
         t0 = time.time()
         locals_dict = locals_dict or {}
         user = tsession and tsession.get_user()
@@ -180,9 +181,9 @@ Check Help Tab for the rest variables.
                 'html': html}
 
     @api.model
-    def send(self, bot, rendered, tsession, locals_dict):
+    def send(self, bot, rendered, tsession):
         try:
-            self._send(bot, rendered, tsession, locals_dict)
+            self._send(bot, rendered, tsession)
             return True
         except ApiException:
             # TODO remove tsession in case of following error:
@@ -191,9 +192,9 @@ Check Help Tab for the rest variables.
             return False
 
     @api.model
-    def _send(self, bot, rendered, tsession, locals_dict):
-        _logger.debug('locals_dict %s' % locals_dict)
-        reply_markup = locals_dict.get('data', None).get('reply_markup', None)
+    def _send(self, bot, rendered, tsession):
+        reply_markup = rendered.get('markup', None)
+        _logger.debug('_send rendered %s' % rendered)
         _logger.debug('reply_markup %s' % reply_markup)
         if rendered.get('html'):
             _logger.debug('Send:\n%s', rendered.get('html'))
@@ -414,7 +415,7 @@ Check Help Tab for the rest variables.
             for tsession in notify_sessions:
                 if not command.universal:
                     rendered = command.render_notification(locals_dict, tsession)
-                command.send(bot, rendered, tsession, locals_dict)
+                command.send(bot, rendered, tsession)
 
 
 class IrConfigParameter(models.Model):

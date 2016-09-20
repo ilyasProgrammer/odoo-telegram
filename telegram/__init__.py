@@ -118,8 +118,6 @@ class OdooTelegramThread(threading.Thread):
 
         def listener(message, dbname, odoo_thread, bot):
             bus_message = message['message']
-            if not bus_message.get('action', False):
-                return
             if bus_message['action'] == 'token_changed':
                 _logger.debug('token_changed')
                 self.build_new_proc_bundle(dbname, odoo_thread)
@@ -175,12 +173,44 @@ class OdooTelegramThread(threading.Thread):
                 bot = TeleBotMod(token, threaded=True, num_threads=num_telegram_threads)
                 bot.num_telegram_threads = num_telegram_threads
                 bot.set_update_listener(listener)
+
+                @bot.callback_query_handler(func=lambda call: True)
+                def callback_inline(self):
+                    # Если сообщение из чата с ботом
+                    _logger.debug("callback_inline msg: %s" % self.message)
+                    if self.message:
+                        if self.data:
+                            _logger.debug("callback_inline data: %s" % self.data)
+                            _logger.debug("callback_inline self: %s" % self)
+                            command_name = self.data.split('_')[0]
+                            db = openerp.sql_db.db_connect(bot.dbname)
+                            registry = teletools.get_registry(bot.dbname)
+                            with openerp.api.Environment.manage(), db.cursor() as cr:
+                                command_id = registry['telegram.command'].search(cr, SUPERUSER_ID, [('name', '=', '/' + command_name)], limit=1)
+                                command = registry['telegram.command'].browse(cr, SUPERUSER_ID, command_id)
+                                if not command:
+                                    _logger.error('Command %s not found.' % command_name, exc_info=True)
+                                    return
+                                _logger.debug("callback_inline command: %s" % command)
+                                tsession = registry['telegram.session'].get_session(cr, SUPERUSER_ID, self.message.chat.id)
+                                _logger.debug("callback_inline tsession: %s" % tsession)
+                                response, locals_dict = command.get_callback({'callback_data': self.data}, tsession)
+                                bot.cache.set_value(command, response, tsession)
+                                registry['telegram.command'].send(cr, SUPERUSER_ID, bot, response, tsession, locals_dict)
+
+                    # Если сообщение из инлайн-режима
+                    elif self.inline_message_id:
+                        if self.data:
+                            pass
+
                 bot.dbname = dbname
                 bot_thread = BotPollingThread(bot)
                 bot_thread.start()
                 odoo_thread.token = token
                 odoo_thread.bot = bot
                 odoo_thread.bot_thread = bot_thread
+
+
 
     @staticmethod
     def get_bundle_action(dbname, odoo_thread):
@@ -244,6 +274,10 @@ class TeleBotMod(TeleBot, object):
         self.worker_pool = util.ThreadPool(num_threads)
         self.cache = CommandCache()
         _logger.info("TeleBot started with %s threads" % num_threads)
+
+    def add_callback_query_handler(self, handler, func):
+        super(TeleBotMod, self).add_callback_query_handler(handler, func)
+        self.callback_query_handlers[-1]['bot'] = self
 
 
 class CommandCache(object):
