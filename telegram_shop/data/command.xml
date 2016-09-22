@@ -8,35 +8,38 @@
         <field name="type">normal</field>
         <field name="universal">True</field>
         <field name="group_ids" eval="[(4, ref('base.group_user'))]" />
-        <field name="response_code">data = {}
-data['product_categories'] = env['product.category'].search([])
-keyboard = types.InlineKeyboardMarkup()
-for r in data['product_categories']:
-    cat_name = env['product.category'].browse(r.id).name
-    callback_button = types.InlineKeyboardButton(text=cat_name, callback_data='shop_menuin_'+str(r.id))
-    keyboard.add(callback_button)
-data['reply_markup'] = keyboard
-data['action'] = 'menuin'</field>
-        <field name="callback_query_handler">#
-# callback_data = {'command' : shop
-#                  'action': menuin/menuout/itemin/itemadd/itemremove/checkout/cartin/cartout
-#                  'id': some_cat_id/some_item_id}
-_logger.debug("callback_data  : %s" % callback_data)
-if 'menuin' in callback_data:
-    element_id = callback_data.split('_')[2]
-    _logger.debug("element_id: %s" % element_id)
-    data['action'] = 'menuin'
-    res = env['product.category'].search([('parent_id','=',int(element_id))])
-    if not res:
-        res = env['product.product'].search([('categ_id','=',int(element_id))])
-        data['action'] = 'itemin'
-    _logger.debug("res: %s" % res)
+        <field name="response_code">#
+_logger.debug("callback_data: %s" % callback_data)
+if callback_data:
+    # callback_data = {'command' : shop
+    #                  'action': menuin/menuout/itemin/itemadd/itemremove/checkout/cartin/cartout
+    #                  'id': some_cat_id/some_item_id}
+    if 'menuin' in callback_data:
+        element_id = callback_data.split('_')[2]
+        _logger.debug("element_id: %s" % element_id)
+        data['action'] = 'menuin'
+        res = env['product.category'].search([('parent_id','=',int(element_id))])
+        if not res:
+            res = env['product.product'].search([('categ_id','=',int(element_id))])
+            data['action'] = 'itemin'
+        _logger.debug("res: %s" % res)
+        keyboard = types.InlineKeyboardMarkup()
+        for r in res:
+            callback_button = types.InlineKeyboardButton(text=r.name, callback_data='shop_'+data['action']+'_'+str(r.id))
+            keyboard.add(callback_button)
+        data['reply_markup'] = keyboard
+    elif 'itemin' in callback_data:
+        /
+
+else:
+    data['product_categories'] = env['product.category'].search([])
     keyboard = types.InlineKeyboardMarkup()
-    for r in res:
-        callback_button = types.InlineKeyboardButton(text=r.name, callback_data='shop_'+action+'_'+str(r.id))
+    for r in data['product_categories']:
+        cat_name = env['product.category'].browse(r.id).name
+        callback_button = types.InlineKeyboardButton(text=cat_name, callback_data='shop_menuin_'+str(r.id))
         keyboard.add(callback_button)
     data['reply_markup'] = keyboard
-        </field>
+    data['action'] = 'menuin'</field>
         <field name="response_template" type="xml">
             <t>
                 <t t-if="data.get('action', False)">

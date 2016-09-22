@@ -4,7 +4,7 @@ import datetime
 import dateutil
 import time
 import logging
-from telebot.apihelper import ApiException
+from telebot.apihelper import ApiException, _convert_markup
 from telebot import types, TeleBot
 from lxml import etree
 from openerp import tools
@@ -49,7 +49,6 @@ Check Help Tab for the rest variables.
 
     ''')
     notification_template = fields.Text(help='Template for the message, that user will receive when event happens')
-    callback_query_handler = fields.Text(help='Method to process buttons callbacks')
     group_ids = fields.Many2many('res.groups', string="Access Groups", help='Who can use this command. Set empty list for public commands (e.g. /login)', default=lambda self: [self.env.ref('base.group_user').id])
     model_ids = fields.Many2many('ir.model', 'command_to_model_rel', 'command_id', 'model_id', string="Related models", help='Is used by Server Action to find commands to proceed')
     user_ids = fields.Many2many('res.users', 'command_to_user_rel', 'telegram_command_id', 'user_id', string='Subscribed users')
@@ -155,6 +154,7 @@ Check Help Tab for the rest variables.
             'command': self.sudo(user),
             'env': self.env(user=user),
             'data': {},
+            'callback_data': locals_dict.get('callback_data', False),
             'tsession': tsession})
         globals_dict = self._get_globals_dict()
         if code:
@@ -178,6 +178,7 @@ Check Help Tab for the rest variables.
         render_time = time.time() - t0
         _logger.debug('Render in %.2fs\n qcontext:\n%s \nTemplate:\n%s\n', render_time, qcontext, template)
         return {'photos': [],
+                'markup': _convert_markup(locals_dict.get('data', {}).get('reply_markup', {})),
                 'html': html}
 
     @api.model
