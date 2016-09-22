@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from StringIO import StringIO
+import base64
 import datetime
 import dateutil
 import time
@@ -177,9 +179,14 @@ Check Help Tab for the rest variables.
         html = self.pool['ir.qweb'].render_node(dom, qcontext)
         render_time = time.time() - t0
         _logger.debug('Render in %.2fs\n qcontext:\n%s \nTemplate:\n%s\n', render_time, qcontext, template)
-        return {'photos': [],
-                'markup': _convert_markup(locals_dict.get('data', {}).get('reply_markup', {})),
-                'html': html}
+        ret = {'photos': [],
+               'markup': _convert_markup(locals_dict.get('data', {}).get('reply_markup', {})),
+               'html': html}
+        if locals_dict['data'].get('photo_base64', False):
+            f = StringIO(base64.b64decode(locals_dict['data']['photo_base64']))
+            f.name = 'item.png'
+            ret['photos'].append({'type': 'base_64', 'file': f})
+        return ret
 
     @api.model
     def send(self, bot, rendered, tsession):
@@ -212,6 +219,7 @@ Check Help Tab for the rest variables.
                     except ApiException:
                         _logger.debug('Sending photo by file_id is failed', exc_info=True)
                 photo['file'].seek(0)
+                _logger.debug('photo[file] %s ' % photo['file'])
                 res = bot.send_photo(tsession.chat_ID, photo['file'])
                 photo['file_id'] = res.photo[0].file_id
 
