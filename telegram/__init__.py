@@ -174,7 +174,7 @@ class OdooTelegramThread(threading.Thread):
                 bot.num_telegram_threads = num_telegram_threads
                 bot.set_update_listener(listener)
                 bot.dbname = dbname
-                bot.add_callback_query_handler(lambda call: self.callback_query_handler(call, bot), lambda call: True)
+                bot.add_callback_query_handler({'function': lambda call: self.callback_query_handler(call, bot), 'filters': {}})
                 bot_thread = BotPollingThread(bot)
                 bot_thread.start()
                 odoo_thread.token = token
