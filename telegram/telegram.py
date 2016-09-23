@@ -156,6 +156,7 @@ Check Help Tab for the rest variables.
             'command': self.sudo(user),
             'env': self.env(user=user),
             'data': {},
+            'photos': [],
             'callback_data': locals_dict.get('callback_data', False),
             'tsession': tsession})
         globals_dict = self._get_globals_dict()
@@ -182,10 +183,14 @@ Check Help Tab for the rest variables.
         ret = {'photos': [],
                'markup': _convert_markup(locals_dict.get('data', {}).get('reply_markup', {})),
                'html': html}
-        if locals_dict['data'].get('photo_base64', False):
-            f = StringIO(base64.b64decode(locals_dict['data']['photo_base64']))
-            f.name = 'item.png'
-            ret['photos'].append({'type': 'base_64', 'file': f})
+        for photo in locals_dict.get('photos', []):
+            if photo.get('type') == 'file':
+                f = photo['data']
+            else:
+                # type is 'base64' by default'
+                f = StringIO(base64.b64decode(photo['data']))
+                f.name = photo.get('filename', 'item.png')
+            ret['photos'].append({'file': f})
         return ret
 
     @api.model

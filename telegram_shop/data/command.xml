@@ -32,7 +32,7 @@ if callback_data:
         data['action'] = 'itemopen'
         product = env['product.product'].browse(element_id)
         data['product_name'] = product.name
-        data['photo_base64'] = product.image
+        photos = [{'data':product.image}]
 else:
     data['product_categories'] = env['product.category'].search([])
     keyboard = types.InlineKeyboardMarkup()
